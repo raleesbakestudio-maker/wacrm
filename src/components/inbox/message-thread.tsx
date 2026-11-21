@@ -239,6 +239,11 @@ export function MessageThread({
   const conversationId = conversation?.id;
   const hasUnread = (conversation?.unread_count ?? 0) > 0;
 
+  // Tracks the conversation ID for which messages were previously loaded.
+  // We only show the full loading spinner when switching to a DIFFERENT conversation.
+  // During background resyncs (resyncToken bump), loading remains false so the chat window never blinks.
+  const lastLoadedConvIdRef = useRef<string | null>(null);
+
   // Fetch messages whenever the selected conversation changes. Kept
   // separate from the unread-reset effect so that incoming messages
   // arriving while the thread is open don't trigger a full refetch —
@@ -249,8 +254,14 @@ export function MessageThread({
     const supabase = createClient();
     let cancelled = false;
 
+    const isDifferentConv = lastLoadedConvIdRef.current !== conversationId;
+    lastLoadedConvIdRef.current = conversationId;
+
     (async () => {
-      setLoading(true);
+      // Only set loading = true on initial load of a new conversation, not during background resync
+      if (isDifferentConv) {
+        setLoading(true);
+      }
 
       const { data, error } = await supabase
         .from("messages")
@@ -266,7 +277,9 @@ export function MessageThread({
         onMessagesLoadedRef.current(data ?? []);
       }
 
-      if (!cancelled) setLoading(false);
+      if (!cancelled && isDifferentConv) {
+        setLoading(false);
+      }
     })();
 
     return () => {
@@ -408,11 +421,19 @@ export function MessageThread({
       });
   }, [conversationId, hasUnread]);
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on initial load, new messages, or when already near bottom
+  const prevMsgLengthRef = useRef(0);
   useEffect(() => {
     if (scrollRef.current) {
       const el = scrollRef.current;
-      el.scrollTop = el.scrollHeight;
+      const isInitial = prevMsgLengthRef.current === 0 && messages.length > 0;
+      const isNewMessage = messages.length > prevMsgLengthRef.current;
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+
+      if (isInitial || isNewMessage || isNearBottom) {
+        el.scrollTop = el.scrollHeight;
+      }
+      prevMsgLengthRef.current = messages.length;
     }
   }, [messages]);
 

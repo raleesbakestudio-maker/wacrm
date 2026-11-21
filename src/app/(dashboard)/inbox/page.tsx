@@ -346,7 +346,25 @@ export default function InboxPage() {
 
   const handleConversationsLoaded = useCallback(
     (loaded: Conversation[]) => {
-      setConversations(loaded);
+      setConversations((prev) => {
+        if (prev.length === loaded.length && prev.length > 0) {
+          let isSame = true;
+          for (let i = 0; i < prev.length; i++) {
+            if (
+              prev[i].id !== loaded[i].id ||
+              prev[i].last_message_text !== loaded[i].last_message_text ||
+              prev[i].last_message_at !== loaded[i].last_message_at ||
+              prev[i].unread_count !== loaded[i].unread_count ||
+              prev[i].status !== loaded[i].status
+            ) {
+              isSame = false;
+              break;
+            }
+          }
+          if (isSame) return prev;
+        }
+        return loaded;
+      });
       // Resolve a pending deep-link here rather than in an effect — this
       // is an event handler, so the setState calls below are allowed by
       // react-hooks/set-state-in-effect. Runs once per ?c=<id> URL value
@@ -447,7 +465,24 @@ export default function InboxPage() {
 
 
   const handleMessagesLoaded = useCallback((loaded: Message[]) => {
-    setMessages(loaded);
+    setMessages((prev) => {
+      // If messages are identical, return prev to preserve reference and prevent blinking
+      if (prev.length === loaded.length && prev.length > 0) {
+        let isSame = true;
+        for (let i = 0; i < prev.length; i++) {
+          if (
+            prev[i].id !== loaded[i].id ||
+            prev[i].status !== loaded[i].status ||
+            prev[i].content_text !== loaded[i].content_text
+          ) {
+            isSame = false;
+            break;
+          }
+        }
+        if (isSame) return prev;
+      }
+      return loaded;
+    });
   }, []);
 
   const handleNewMessage = useCallback((msg: Message) => {
