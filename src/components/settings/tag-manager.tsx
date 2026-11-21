@@ -50,18 +50,17 @@ export function TagManager() {
       setLoading(false);
       return;
     }
-    fetchTags(user.id);
+    fetchTags();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user?.id]);
 
-  async function fetchTags(userId: string) {
+  async function fetchTags() {
     try {
       setLoading(true);
 
       const { data, error } = await supabase
         .from('tags')
         .select('*')
-        .eq('user_id', userId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -93,11 +92,16 @@ export function TagManager() {
         .eq('user_id', user.id)
         .maybeSingle();
 
+      if (!profile?.account_id) {
+        toast.error('Account profile not found. Please refresh and try again.');
+        return;
+      }
+
       const { error } = await supabase
         .from('tags')
         .insert({
           user_id: user.id,
-          account_id: profile?.account_id,
+          account_id: profile.account_id,
           name: newTagName.trim(),
           color: selectedColor,
         });
@@ -108,7 +112,7 @@ export function TagManager() {
       setDialogOpen(false);
       setNewTagName('');
       setSelectedColor(PRESET_COLORS[3].value);
-      if (user) await fetchTags(user.id);
+      await fetchTags();
     } catch (err) {
       console.error('Create error:', err);
       toast.error('Failed to create tag');

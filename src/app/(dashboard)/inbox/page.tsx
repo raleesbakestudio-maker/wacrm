@@ -306,6 +306,11 @@ export default function InboxPage() {
     wasConnectedRef.current = isConnected;
   }, [isConnected]);
 
+  const isConnectedRef = useRef(isConnected);
+  useEffect(() => {
+    isConnectedRef.current = isConnected;
+  }, [isConnected]);
+
   /**
    * Refetch when the tab regains focus. Background tabs may have their
    * WS throttled by the browser even without a full disconnect, so a
@@ -320,13 +325,15 @@ export default function InboxPage() {
     };
     document.addEventListener("visibilitychange", onVisibility);
 
-    // Heartbeat resync every 5 seconds while tab is active to guarantee
-    // instantaneous updates even if Supabase Realtime WebSocket drops an event.
+    // Budget-safe heartbeat: Supabase Realtime WebSocket already delivers
+    // incoming messages instantly for FREE (0 polling cost).
+    // This fallback ONLY fires if the WebSocket connection is down/lost (!isConnected)
+    // to avoid burning unnecessary Supabase API read requests.
     const interval = setInterval(() => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === "visible" && !isConnectedRef.current) {
         setResyncToken((n) => n + 1);
       }
-    }, 5000);
+    }, 15000);
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
