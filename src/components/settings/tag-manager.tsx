@@ -87,10 +87,17 @@ export function TagManager() {
         return;
       }
 
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
       const { error } = await supabase
         .from('tags')
         .insert({
           user_id: user.id,
+          account_id: profile?.account_id,
           name: newTagName.trim(),
           color: selectedColor,
         });

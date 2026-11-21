@@ -243,12 +243,19 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       if (c.phone) byPhone.set(c.phone, c);
     }
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('account_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
     // Insert only missing contacts, in one batch per 200 rows (PostgREST
     // has a default payload cap — 200 keeps individual requests small).
     const missing = phones
       .filter((p) => !byPhone.has(p))
       .map((phone) => ({
         user_id: user.id,
+        account_id: profile?.account_id,
         phone,
         name: uniqueByPhone.get(phone)?.name ?? null,
       }));
@@ -337,10 +344,17 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
 
       // ── Step 2: Create broadcast row ──────────────────────────────
       setProgress(10);
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
       const { data: broadcast, error: broadcastError } = await supabase
         .from('broadcasts')
         .insert({
           user_id: user.id,
+          account_id: profile?.account_id,
           name: payload.name,
           template_name: payload.template.name,
           template_language: payload.template.language ?? 'en_US',

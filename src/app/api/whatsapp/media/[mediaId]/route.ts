@@ -3,6 +3,16 @@ import { createClient } from '@/lib/supabase/server'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 
+// Fast in-memory cache for media to avoid repeated 8s downloads from Meta on every render
+interface CachedMedia {
+  buffer: Uint8Array
+  contentType: string
+  cachedAt: number
+}
+const mediaCache = new Map<string, CachedMedia>()
+const MAX_CACHE_ITEMS = 150
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ mediaId: string }> }
@@ -15,6 +25,18 @@ export async function GET(
         { error: 'Media ID is required' },
         { status: 400 }
       )
+    }
+
+    // Check memory cache first
+    const cached = mediaCache.get(mediaId)
+    if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
+      return new Response(cached.buffer as unknown as BodyInit, {
+        status: 200,
+        headers: {
+          'Content-Type': cached.contentType,
+          'Cache-Control': 'public, max-age=604800, immutable',
+        },
+      })
     }
 
     const supabase = await createClient()
@@ -31,14 +53,31 @@ export async function GET(
       )
     }
 
-    // Fetch and decrypt WhatsApp config
-    const { data: config, error: configError } = await supabase
+    // Fetch and decrypt WhatsApp config — first by user_id, fallback to account_id
+    let { data: config } = await supabase
       .from('whatsapp_config')
       .select('*')
       .eq('user_id', user.id)
-      .single()
+      .maybeSingle()
 
-    if (configError || !config) {
+    if (!config) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (profile?.account_id) {
+        const { data: accConfig } = await supabase
+          .from('whatsapp_config')
+          .select('*')
+          .eq('account_id', profile.account_id)
+          .maybeSingle()
+        config = accConfig
+      }
+    }
+
+    if (!config) {
       return NextResponse.json(
         { error: 'WhatsApp not configured' },
         { status: 400 }
@@ -56,11 +95,25 @@ export async function GET(
       accessToken,
     })
 
-    return new Response(new Uint8Array(buffer), {
+    const finalContentType = contentType || mediaInfo.mimeType || 'application/octet-stream'
+    const uint8Buf = new Uint8Array(buffer)
+
+    // Cache in memory for subsequent requests
+    if (mediaCache.size >= MAX_CACHE_ITEMS) {
+      const oldestKey = mediaCache.keys().next().value
+      if (oldestKey) mediaCache.delete(oldestKey)
+    }
+    mediaCache.set(mediaId, {
+      buffer: uint8Buf,
+      contentType: finalContentType,
+      cachedAt: Date.now(),
+    })
+
+    return new Response(uint8Buf as unknown as BodyInit, {
       status: 200,
       headers: {
-        'Content-Type': contentType || mediaInfo.mimeType || 'application/octet-stream',
-        'Cache-Control': 'public, max-age=86400',
+        'Content-Type': finalContentType,
+        'Cache-Control': 'public, max-age=604800, immutable',
       },
     })
   } catch (error) {

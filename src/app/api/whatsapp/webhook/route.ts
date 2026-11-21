@@ -181,10 +181,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  // Process asynchronously so we can ack Meta within their timeout.
-  processWebhook(body).catch((error) => {
+  // Await processing so Vercel Serverless runtime does not freeze/abort the execution
+  // before Supabase DB writes and Realtime events finish. Meta timeout is 20s.
+  try {
+    await processWebhook(body)
+  } catch (error) {
     console.error('Error processing webhook:', error)
-  })
+  }
 
   return NextResponse.json({ status: 'received' }, { status: 200 })
 }
@@ -730,23 +733,11 @@ async function parseMessageContent(
    */
   interactiveReplyId: string | null
 }> {
-  // getMediaUrl signature is (mediaId, accessToken) — earlier code had
-  // the args swapped, so every verification hit an invalid Meta URL and
-  // fell through to the catch block, leaving mediaUrl as null. That's
-  // why images showed up as empty bubbles in the inbox.
-  const verifyAndBuildUrl = async (
-    mediaId: string
-  ): Promise<string | null> => {
-    try {
-      await getMediaUrl({ mediaId, accessToken })
-      return `/api/whatsapp/media/${mediaId}`
-    } catch (error) {
-      console.error(
-        `Failed to verify media ${mediaId} with Meta:`,
-        error instanceof Error ? error.message : error
-      )
-      return null
-    }
+  // Build media URL directly. The browser endpoint /api/whatsapp/media/[mediaId]
+  // fetches and caches the media from Meta when viewed, avoiding an expensive
+  // extra round-trip HTTP request during webhook ingestion.
+  const verifyAndBuildUrl = (mediaId: string): string => {
+    return `/api/whatsapp/media/${mediaId}`
   }
 
   // Default shape — each case overrides only the fields it cares about.

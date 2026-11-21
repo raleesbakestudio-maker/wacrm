@@ -185,9 +185,20 @@ export function DealForm({
         setSaving(false);
         return;
       }
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
       const { error } = await supabase
         .from("deals")
-        .insert({ ...payload, user_id: user.id, status: "open" });
+        .insert({
+          ...payload,
+          user_id: user.id,
+          account_id: profile?.account_id,
+          status: "open",
+        });
       if (error) {
         toast.error("Failed to create deal");
         setSaving(false);

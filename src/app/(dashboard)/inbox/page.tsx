@@ -319,8 +319,18 @@ export default function InboxPage() {
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
+
+    // Heartbeat resync every 5 seconds while tab is active to guarantee
+    // instantaneous updates even if Supabase Realtime WebSocket drops an event.
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        setResyncToken((n) => n + 1);
+      }
+    }, 5000);
+
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
+      clearInterval(interval);
     };
   }, []);
 

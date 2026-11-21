@@ -131,12 +131,19 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
       let imported = 0;
       let failed = 0;
 
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
       // Batch insert in chunks of 50
       const chunkSize = 50;
       for (let i = 0; i < parsedRows.length; i += chunkSize) {
         const chunk = parsedRows.slice(i, i + chunkSize);
         const rows = chunk.map((row) => ({
           user_id: user.id,
+          account_id: profile?.account_id,
           phone: row.phone,
           name: row.name || null,
           email: row.email || null,

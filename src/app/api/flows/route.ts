@@ -71,6 +71,12 @@ export async function POST(request: Request) {
   }
 
   const admin = supabaseAdmin()
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('account_id')
+    .eq('user_id', userId)
+    .maybeSingle()
+  const accountId = profile?.account_id
 
   // -------- Template clone path --------
   if (body.template_slug) {
@@ -85,6 +91,7 @@ export async function POST(request: Request) {
       .from('flows')
       .insert({
         user_id: userId,
+        account_id: accountId,
         name: body.name?.trim() || template.name,
         description: template.description,
         status: 'draft',
@@ -133,6 +140,7 @@ export async function POST(request: Request) {
     .from('flows')
     .insert({
       user_id: userId,
+      account_id: accountId,
       name: body.name.trim(),
       description: body.description ?? null,
       status: 'draft',

@@ -250,9 +250,16 @@ export function ContactDetailView({
       return;
     }
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('account_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
     const { error } = await supabase.from('contact_notes').insert({
       contact_id: contactId,
       user_id: user.id,
+      account_id: profile?.account_id,
       note_text: newNote.trim(),
     });
 

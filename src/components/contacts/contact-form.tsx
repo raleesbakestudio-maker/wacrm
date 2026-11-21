@@ -107,10 +107,17 @@ export function ContactForm({
           .eq('id', contactId);
         if (error) throw error;
       } else {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('account_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
         const { data, error } = await supabase
           .from('contacts')
           .insert({
             user_id: user.id,
+            account_id: profile?.account_id,
             name: name.trim() || null,
             phone: phone.trim(),
             email: email.trim() || null,

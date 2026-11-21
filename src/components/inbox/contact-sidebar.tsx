@@ -94,11 +94,18 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     } = await supabase.auth.getSession();
     const user = session?.user;
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("account_id")
+      .eq("user_id", user?.id)
+      .maybeSingle();
+
     const { data, error } = await supabase
       .from("contact_notes")
       .insert({
         contact_id: contact.id,
         user_id: user?.id,
+        account_id: profile?.account_id,
         note_text: newNote.trim(),
       })
       .select()

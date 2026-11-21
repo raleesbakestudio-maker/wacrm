@@ -91,8 +91,15 @@ export default function NewBroadcastPage() {
       return;
     }
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('account_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
     const { error } = await supabase.from('broadcasts').insert({
       user_id: user.id,
+      account_id: profile?.account_id,
       name: name.trim(),
       template_name: template.name,
       template_language: template.language ?? 'en_US',

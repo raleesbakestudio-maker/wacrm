@@ -74,13 +74,12 @@ export async function POST(request: Request) {
       )
     }
 
-    // Fetch conversation and contact
+    // Fetch conversation and contact (RLS scopes to current user/account)
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
       .select('*, contact:contacts(*)')
       .eq('id', conversation_id)
-      .eq('user_id', user.id)
-      .single()
+      .maybeSingle()
 
     if (convError || !conversation) {
       return NextResponse.json(
@@ -106,14 +105,23 @@ export async function POST(request: Request) {
       )
     }
 
-    // Fetch and decrypt WhatsApp config
-    const { data: config, error: configError } = await supabase
+    // Fetch and decrypt WhatsApp config — by user_id or account_id
+    let { data: config } = await supabase
       .from('whatsapp_config')
       .select('*')
       .eq('user_id', user.id)
-      .single()
+      .maybeSingle()
 
-    if (configError || !config) {
+    if (!config && conversation.account_id) {
+      const { data: accConfig } = await supabase
+        .from('whatsapp_config')
+        .select('*')
+        .eq('account_id', conversation.account_id)
+        .maybeSingle()
+      config = accConfig
+    }
+
+    if (!config) {
       return NextResponse.json(
         { error: 'WhatsApp not configured. Please set up your WhatsApp integration first.' },
         { status: 400 }

@@ -219,6 +219,7 @@ export async function POST() {
 
       const row = {
         user_id: user.id,
+        account_id: config.account_id,
         name: t.name,
         category: normalizeCategory(t.category),
         language: t.language,

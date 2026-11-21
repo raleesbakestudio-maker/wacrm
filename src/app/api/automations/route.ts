@@ -79,10 +79,17 @@ export async function POST(request: Request) {
   }
 
   const admin = supabaseAdmin()
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('account_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
   const { data: automation, error: insertErr } = await admin
     .from('automations')
     .insert({
       user_id: user.id,
+      account_id: profile?.account_id,
       name: effectiveName,
       description: effectiveDescription ?? null,
       trigger_type: effectiveTriggerType,
