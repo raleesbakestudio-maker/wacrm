@@ -12,7 +12,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Upload, FileText, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Upload, FileText, Loader2, CheckCircle, XCircle, Download } from 'lucide-react';
 
 interface ImportModalProps {
   open: boolean;
@@ -233,6 +233,18 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
             onChange={handleFileChange}
             className="hidden"
           />
+
+          <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+            <span>Need the correct format?</span>
+            <a
+              href="/sample_contacts.csv"
+              download="sample_contacts.csv"
+              className="inline-flex items-center gap-1.5 text-primary hover:underline font-medium"
+            >
+              <Download className="size-3.5" />
+              Download Sample CSV
+            </a>
+          </div>
 
           {/* Preview table */}
           {preview.length > 0 && !result && (
