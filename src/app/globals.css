@@ -69,6 +69,10 @@
  * project/Color Themes.html — change one, change the other.
  * ============================================================ */
 
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Malayalam", Helvetica, Arial, sans-serif;
+}
+
 :root,
 html[data-theme="violet"] {
   --background: oklch(0.13 0.01 260);

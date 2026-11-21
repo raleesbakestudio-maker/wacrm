@@ -1,15 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import Script from "next/script";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { DEFAULT_THEME, STORAGE_KEY, THEME_IDS } from "@/lib/themes";
-
-const inter = Inter({
-  variable: "--font-sans",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: {
@@ -69,7 +63,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-theme={DEFAULT_THEME}
-      className={`${inter.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
       <head>
         <Script
