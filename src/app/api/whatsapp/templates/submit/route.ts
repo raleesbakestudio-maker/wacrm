@@ -17,6 +17,7 @@ import { normalizeStatus } from '@/lib/whatsapp/template-status-normalize'
  */
 function buildUpsertRow(
   userId: string,
+  accountId: string,
   payload: TemplatePayload,
   extras: {
     status: 'DRAFT' | string
@@ -26,6 +27,7 @@ function buildUpsertRow(
 ) {
   return {
     user_id: userId,
+    account_id: accountId,
     name: payload.name,
     category: payload.category,
     language: payload.language,
@@ -111,6 +113,35 @@ export async function POST(request: Request) {
 
     const metaPayload = buildMetaTemplatePayload(payload)
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('account_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    let { data: config, error: configError } = await supabase
+      .from('whatsapp_config')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!config && profile?.account_id) {
+      const { data: accConfig } = await supabase
+        .from('whatsapp_config')
+        .select('*')
+        .eq('account_id', profile.account_id)
+        .maybeSingle()
+      config = accConfig
+    }
+
+    const accountId = config?.account_id || profile?.account_id
+    if (!accountId) {
+      return NextResponse.json(
+        { error: 'Account profile not found. Please log in again.' },
+        { status: 400 },
+      )
+    }
+
     const dryRun =
       process.env.WHATSAPP_TEMPLATES_DRY_RUN === 'true' ||
       process.env.WHATSAPP_TEMPLATES_DRY_RUN === '1'
@@ -122,11 +153,6 @@ export async function POST(request: Request) {
       metaTemplateId = `dry-run-${crypto.randomUUID()}`
       metaStatus = 'PENDING'
     } else {
-      const { data: config, error: configError } = await supabase
-        .from('whatsapp_config')
-        .select('*')
-        .eq('user_id', user.id)
-        .single()
       if (configError || !config) {
         return NextResponse.json(
           {
@@ -161,7 +187,7 @@ export async function POST(request: Request) {
         // until they fix and re-submit.
         await upsertTemplateRow(
           supabase,
-          buildUpsertRow(user.id, payload, {
+          buildUpsertRow(user.id, accountId, payload, {
             status: 'DRAFT',
             metaTemplateId: null,
             submissionError: message,
@@ -181,7 +207,7 @@ export async function POST(request: Request) {
 
     const { data: row, error: upsertErr } = await upsertTemplateRow(
       supabase,
-      buildUpsertRow(user.id, payload, {
+      buildUpsertRow(user.id, accountId, payload, {
         status: normalizeStatus(metaStatus),
         metaTemplateId,
         submissionError: null,

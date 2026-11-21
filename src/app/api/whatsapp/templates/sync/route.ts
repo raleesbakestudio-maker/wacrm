@@ -135,13 +135,30 @@ export async function POST() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { data: config, error: configError } = await supabase
+    let { data: config, error: configError } = await supabase
       .from('whatsapp_config')
       .select('*')
       .eq('user_id', user.id)
-      .single()
+      .maybeSingle()
 
-    if (configError || !config) {
+    if (!config) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (profile?.account_id) {
+        const { data: accConfig } = await supabase
+          .from('whatsapp_config')
+          .select('*')
+          .eq('account_id', profile.account_id)
+          .maybeSingle()
+        config = accConfig
+      }
+    }
+
+    if (!config) {
       return NextResponse.json(
         {
           error:

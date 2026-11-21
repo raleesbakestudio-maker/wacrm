@@ -75,9 +75,8 @@ export async function PATCH(
     // meta_template_id and status — fetch explicitly.
     const { data: existing, error: lookupErr } = await supabase
       .from('message_templates')
-      .select('id, name, status, meta_template_id, language')
+      .select('id, name, status, meta_template_id, language, account_id')
       .eq('id', id)
-      .eq('user_id', user.id)
       .maybeSingle()
     if (lookupErr || !existing) {
       return NextResponse.json({ error: 'Template not found.' }, { status: 404 })
@@ -124,12 +123,30 @@ export async function PATCH(
     const metaPayload = buildMetaTemplatePayload(payload)
 
     if (!isDryRun()) {
-      const { data: config, error: configError } = await supabase
+      let { data: config } = await supabase
         .from('whatsapp_config')
         .select('*')
         .eq('user_id', user.id)
-        .single()
-      if (configError || !config) {
+        .maybeSingle()
+
+      if (!config) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('account_id')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (profile?.account_id) {
+          const { data: accConfig } = await supabase
+            .from('whatsapp_config')
+            .select('*')
+            .eq('account_id', profile.account_id)
+            .maybeSingle()
+          config = accConfig
+        }
+      }
+
+      if (!config) {
         return NextResponse.json(
           { error: 'WhatsApp not configured.' },
           { status: 400 },
@@ -226,21 +243,38 @@ export async function DELETE(
 
     const { data: existing, error: lookupErr } = await supabase
       .from('message_templates')
-      .select('id, name, meta_template_id')
+      .select('id, name, meta_template_id, account_id')
       .eq('id', id)
-      .eq('user_id', user.id)
       .maybeSingle()
     if (lookupErr || !existing) {
       return NextResponse.json({ error: 'Template not found.' }, { status: 404 })
     }
 
     if (existing.meta_template_id && !isDryRun()) {
-      const { data: config, error: configError } = await supabase
+      let { data: config } = await supabase
         .from('whatsapp_config')
         .select('*')
         .eq('user_id', user.id)
-        .single()
-      if (configError || !config || !config.waba_id) {
+        .maybeSingle()
+
+      if (!config) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('account_id')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (profile?.account_id) {
+          const { data: accConfig } = await supabase
+            .from('whatsapp_config')
+            .select('*')
+            .eq('account_id', profile.account_id)
+            .maybeSingle()
+          config = accConfig
+        }
+      }
+
+      if (!config || !config.waba_id) {
         return NextResponse.json(
           { error: 'WhatsApp not configured — cannot delete on Meta.' },
           { status: 400 },

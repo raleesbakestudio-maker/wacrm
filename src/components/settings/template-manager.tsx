@@ -170,17 +170,16 @@ export function TemplateManager() {
       setLoading(false);
       return;
     }
-    fetchTemplates(user.id);
+    fetchTemplates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user?.id]);
 
-  async function fetchTemplates(userId: string) {
+  async function fetchTemplates() {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('message_templates')
         .select('*')
-        .eq('user_id', userId)
         .order('created_at', { ascending: false });
       if (error) throw error;
       setTemplates(data || []);
@@ -267,7 +266,7 @@ export function TemplateManager() {
       }
       // Refresh first, then close — re-opening the dialog
       // immediately should not show a stale list.
-      if (user) await fetchTemplates(user.id);
+      await fetchTemplates();
       toast.success(
         data.dry_run
           ? isEdit
@@ -321,7 +320,7 @@ export function TemplateManager() {
           { duration: 10000 },
         );
       }
-      await fetchTemplates(user.id);
+      await fetchTemplates();
     } catch (err) {
       console.error('Template sync error:', err);
       toast.error(err instanceof Error ? err.message : 'Failed to sync templates');
@@ -642,7 +641,12 @@ export function TemplateManager() {
               <Input
                 placeholder="e.g. order_confirmation"
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_'),
+                  })
+                }
                 disabled={editingId !== null}
                 className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 disabled:opacity-60 disabled:cursor-not-allowed"
               />
