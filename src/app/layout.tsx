@@ -4,19 +4,23 @@ import { Toaster } from "sonner";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { DEFAULT_THEME, STORAGE_KEY, THEME_IDS } from "@/lib/themes";
+import { PwaRegister } from "@/components/pwa/pwa-register";
 
 export const metadata: Metadata = {
   title: {
-    default: "wacrm",
-    template: "%s — wacrm",
+    default: "RaleesBake Studio CRM",
+    template: "%s — RBS CRM",
   },
-  description: "Self-hostable CRM template for WhatsApp.",
-  robots: {
-    index: false,
-    follow: false,
+  description: "WhatsApp CRM & Inbox for RaleesBake Studio",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "RBS CRM",
   },
   icons: {
-    icon: [{ url: "/icon" }],
+    icon: [{ url: "/icons/icon-192.png" }, { url: "/icon" }],
+    apple: [{ url: "/icons/apple-touch-icon.png" }],
   },
   formatDetection: {
     email: false,
@@ -74,6 +78,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full bg-background text-foreground font-sans">
         <ThemeProvider>
+          <PwaRegister />
           {children}
           <Toaster
             theme="dark"
