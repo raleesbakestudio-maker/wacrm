@@ -40,10 +40,12 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
+  Tag as TagIcon,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ImportModal } from '@/components/contacts/import-modal';
+import { TagManager } from '@/components/settings/tag-manager';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 
@@ -70,6 +72,7 @@ export default function ContactsPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailContactId, setDetailContactId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -219,6 +222,14 @@ export default function ContactsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setTagManagerOpen(true)}
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+          >
+            <TagIcon className="size-4" />
+            Tags
+          </Button>
           <GatedButton
             variant="outline"
             canAct={canEdit}
@@ -460,8 +471,38 @@ export default function ContactsPage() {
       <ImportModal
         open={importOpen}
         onOpenChange={setImportOpen}
-        onImported={fetchContacts}
+        onImported={() => {
+          fetchContacts();
+          fetchTags();
+        }}
       />
+
+      {/* Tag Manager Modal */}
+      <Dialog
+        open={tagManagerOpen}
+        onOpenChange={(open) => {
+          setTagManagerOpen(open);
+          if (!open) {
+            fetchTags();
+            fetchContacts();
+          }
+        }}
+      >
+        <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-white">Manage Tags</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Create and manage tags to organize your contacts and broadcast audiences.
+            </DialogDescription>
+          </DialogHeader>
+          <TagManager
+            onTagsChanged={() => {
+              fetchTags();
+              fetchContacts();
+            }}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>

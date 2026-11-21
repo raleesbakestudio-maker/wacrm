@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 
 interface ContactFormProps {
   open: boolean;
@@ -45,6 +45,9 @@ export function ContactForm({
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [loadingTags, setLoadingTags] = useState(false);
+  const [showNewTagInput, setShowNewTagInput] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [creatingTag, setCreatingTag] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -53,6 +56,8 @@ export function ContactForm({
       setEmail(contact?.email ?? '');
       setCompany(contact?.company ?? '');
       setSelectedTagIds(contactTags.map((ct) => ct.tag_id));
+      setShowNewTagInput(false);
+      setNewTagName('');
       fetchTags();
     }
   }, [open, contact]);
@@ -65,6 +70,53 @@ export function ContactForm({
       .order('name');
     if (data) setTags(data);
     setLoadingTags(false);
+  }
+
+  async function handleQuickCreateTag() {
+    if (!newTagName.trim()) return;
+    try {
+      setCreatingTag(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!profile?.account_id) {
+        toast.error('Account profile not found');
+        return;
+      }
+
+      const { data: createdTag, error } = await supabase
+        .from('tags')
+        .insert({
+          user_id: user.id,
+          account_id: profile.account_id,
+          name: newTagName.trim(),
+          color: '#10b981',
+        })
+        .select('*')
+        .single();
+
+      if (error) throw error;
+
+      setTags((prev) => [...prev, createdTag]);
+      setSelectedTagIds((prev) => [...prev, createdTag.id]);
+      setNewTagName('');
+      setShowNewTagInput(false);
+      toast.success(`Tag "${createdTag.name}" created and selected`);
+    } catch (err) {
+      console.error('Failed to create tag:', err);
+      toast.error('Failed to create tag');
+    } finally {
+      setCreatingTag(false);
+    }
   }
 
   function toggleTag(tagId: string) {
@@ -231,18 +283,69 @@ export function ContactForm({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-slate-300">Tags</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-slate-300">Tags</Label>
+              {!showNewTagInput && (
+                <button
+                  type="button"
+                  onClick={() => setShowNewTagInput(true)}
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  <Plus className="size-3" />
+                  New Tag
+                </button>
+              )}
+            </div>
+
+            {showNewTagInput && (
+              <div className="flex items-center gap-2 pt-1 pb-1">
+                <Input
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  placeholder="New tag name (e.g. Lead)"
+                  className="h-8 text-xs bg-slate-800 border-slate-600 text-white"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleQuickCreateTag();
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  type="button"
+                  disabled={creatingTag || !newTagName.trim()}
+                  onClick={handleQuickCreateTag}
+                  className="h-8 px-2.5 text-xs bg-primary text-primary-foreground"
+                >
+                  {creatingTag ? <Loader2 className="size-3 animate-spin" /> : 'Add'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  type="button"
+                  onClick={() => {
+                    setShowNewTagInput(false);
+                    setNewTagName('');
+                  }}
+                  className="h-8 px-2 text-xs text-slate-400"
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+
             {loadingTags ? (
               <div className="flex items-center gap-2 text-slate-500 text-sm">
                 <Loader2 className="size-3 animate-spin" />
                 Loading tags...
               </div>
-            ) : tags.length === 0 ? (
+            ) : tags.length === 0 && !showNewTagInput ? (
               <p className="text-xs text-slate-500">
-                No tags available. Create tags in Settings.
+                No tags available yet. Click &quot;+ New Tag&quot; above to create one.
               </p>
             ) : (
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 pt-1">
                 {tags.map((tag) => {
                   const selected = selectedTagIds.includes(tag.id);
                   return (

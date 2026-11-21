@@ -30,7 +30,11 @@ const PRESET_COLORS = [
   { name: 'Pink', value: '#ec4899' },
 ];
 
-export function TagManager() {
+interface TagManagerProps {
+  onTagsChanged?: () => void;
+}
+
+export function TagManager({ onTagsChanged }: TagManagerProps = {}) {
   const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
 
@@ -113,6 +117,7 @@ export function TagManager() {
       setNewTagName('');
       setSelectedColor(PRESET_COLORS[3].value);
       await fetchTags();
+      onTagsChanged?.();
     } catch (err) {
       console.error('Create error:', err);
       toast.error('Failed to create tag');
@@ -142,6 +147,7 @@ export function TagManager() {
       setTags((prev) => prev.filter((t) => t.id !== tagToDelete.id));
       setDeleteDialogOpen(false);
       setTagToDelete(null);
+      onTagsChanged?.();
     } catch (err) {
       console.error('Delete error:', err);
       toast.error('Failed to delete tag');

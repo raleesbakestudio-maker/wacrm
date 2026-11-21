@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import type { Tag } from '@/types';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,9 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Upload, FileText, Loader2, CheckCircle, XCircle, Download } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Upload, FileText, Loader2, CheckCircle, XCircle, Download, Plus, Tag as TagIcon } from 'lucide-react';
 
 interface ImportModalProps {
   open: boolean;
@@ -86,10 +89,83 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ imported: number; failed: number } | null>(null);
 
+  // Tags state
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [showNewTagInput, setShowNewTagInput] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [creatingTag, setCreatingTag] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      fetchTags();
+    } else {
+      setSelectedTagIds([]);
+      setShowNewTagInput(false);
+      setNewTagName('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  async function fetchTags() {
+    const { data } = await supabase.from('tags').select('*').order('name');
+    if (data) setTags(data);
+  }
+
+  async function handleQuickCreateTag() {
+    if (!newTagName.trim()) return;
+    try {
+      setCreatingTag(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!profile?.account_id) {
+        toast.error('Account profile not found');
+        return;
+      }
+
+      const { data: createdTag, error } = await supabase
+        .from('tags')
+        .insert({
+          user_id: user.id,
+          account_id: profile.account_id,
+          name: newTagName.trim(),
+          color: '#10b981',
+        })
+        .select('*')
+        .single();
+
+      if (error) throw error;
+
+      setTags((prev) => [...prev, createdTag]);
+      setSelectedTagIds((prev) => [...prev, createdTag.id]);
+      setNewTagName('');
+      setShowNewTagInput(false);
+      toast.success(`Tag "${createdTag.name}" created and selected`);
+    } catch (err) {
+      console.error('Quick tag creation failed:', err);
+      toast.error('Failed to create tag');
+    } finally {
+      setCreatingTag(false);
+    }
+  }
+
   function reset() {
     setFile(null);
     setParsedRows([]);
     setResult(null);
+    setSelectedTagIds([]);
+    setShowNewTagInput(false);
+    setNewTagName('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
@@ -158,15 +234,37 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
         if (error) {
           // Try individual inserts for this chunk
           for (const row of rows) {
-            const { error: singleErr } = await supabase.from('contacts').insert(row);
+            const { data: singleContact, error: singleErr } = await supabase
+              .from('contacts')
+              .insert(row)
+              .select('id')
+              .single();
             if (singleErr) {
               failed++;
             } else {
               imported++;
+              if (singleContact && selectedTagIds.length > 0) {
+                const tagRows = selectedTagIds.map((tId) => ({
+                  contact_id: singleContact.id,
+                  tag_id: tId,
+                }));
+                await supabase.from('contact_tags').insert(tagRows);
+              }
             }
           }
         } else {
           imported += data?.length ?? chunk.length;
+          if (data && selectedTagIds.length > 0) {
+            const contactTagRows: { contact_id: string; tag_id: string }[] = [];
+            for (const c of data) {
+              for (const tId of selectedTagIds) {
+                contactTagRows.push({ contact_id: c.id, tag_id: tId });
+              }
+            }
+            if (contactTagRows.length > 0) {
+              await supabase.from('contact_tags').insert(contactTagRows);
+            }
+          }
         }
       }
 
@@ -244,6 +342,113 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
               <Download className="size-3.5" />
               Download Sample CSV
             </a>
+          </div>
+
+          {/* Tag Selection for Import */}
+          <div className="space-y-2 rounded-lg border border-slate-700/60 bg-slate-800/40 p-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+                <TagIcon className="size-3.5 text-primary" />
+                Assign Tag to Imported Contacts (Optional)
+              </Label>
+              {!showNewTagInput && (
+                <button
+                  type="button"
+                  onClick={() => setShowNewTagInput(true)}
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  <Plus className="size-3" />
+                  New Tag
+                </button>
+              )}
+            </div>
+
+            {showNewTagInput && (
+              <div className="flex items-center gap-2 pt-1 pb-1">
+                <Input
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  placeholder="New tag name (e.g. Batch 2026)"
+                  className="h-8 text-xs bg-slate-800 border-slate-600 text-white"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleQuickCreateTag();
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  type="button"
+                  disabled={creatingTag || !newTagName.trim()}
+                  onClick={handleQuickCreateTag}
+                  className="h-8 px-2.5 text-xs bg-primary text-primary-foreground"
+                >
+                  {creatingTag ? <Loader2 className="size-3 animate-spin" /> : 'Add'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  type="button"
+                  onClick={() => {
+                    setShowNewTagInput(false);
+                    setNewTagName('');
+                  }}
+                  className="h-8 px-2 text-xs text-slate-400"
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+
+            {tags.length === 0 && !showNewTagInput ? (
+              <p className="text-xs text-slate-500">
+                No tags available yet. Click &quot;+ New Tag&quot; above to create one.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {tags.map((tag) => {
+                  const selected = selectedTagIds.includes(tag.id);
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedTagIds((prev) =>
+                          prev.includes(tag.id)
+                            ? prev.filter((id) => id !== tag.id)
+                            : [...prev, tag.id]
+                        )
+                      }
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-all cursor-pointer ${
+                        selected
+                          ? 'ring-2 ring-primary ring-offset-1 ring-offset-slate-900 font-semibold'
+                          : 'opacity-60 hover:opacity-100'
+                      }`}
+                      style={{
+                        backgroundColor: tag.color + '25',
+                        color: tag.color,
+                        border: `1px solid ${tag.color}40`,
+                      }}
+                    >
+                      {selected && <CheckCircle className="size-3" />}
+                      {tag.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {selectedTagIds.length > 0 && (
+              <p className="text-[11px] text-slate-400">
+                All imported contacts will be tagged with:{' '}
+                <span className="text-primary font-medium">
+                  {tags
+                    .filter((t) => selectedTagIds.includes(t.id))
+                    .map((t) => t.name)
+                    .join(', ')}
+                </span>
+              </p>
+            )}
           </div>
 
           {/* Preview table */}
