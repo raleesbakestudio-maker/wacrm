@@ -371,32 +371,34 @@ export function ContactDetailView({
 
             {/* Tabs */}
             <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
-              <TabsList className="bg-slate-800/50 border-b border-slate-700 mx-4 mt-3">
-                <TabsTrigger
-                  value="details"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-                >
-                  Details
-                </TabsTrigger>
-                <TabsTrigger
-                  value="tags"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-                >
-                  Tags
-                </TabsTrigger>
-                <TabsTrigger
-                  value="notes"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-                >
-                  Notes
-                </TabsTrigger>
-                <TabsTrigger
-                  value="custom"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-                >
-                  Custom Fields
-                </TabsTrigger>
-              </TabsList>
+              <div className="w-full overflow-x-auto px-4 mt-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <TabsList className="bg-slate-800/50 border-b border-slate-700 w-full min-w-max justify-start">
+                  <TabsTrigger
+                    value="details"
+                    className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+                  >
+                    Details
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="tags"
+                    className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+                  >
+                    Tags
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="notes"
+                    className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+                  >
+                    Notes
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="custom"
+                    className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+                  >
+                    Custom Fields
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
               {/* Details Tab */}
               <TabsContent value="details" className="flex-1 overflow-y-auto px-4 py-3">

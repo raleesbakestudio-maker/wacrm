@@ -68,6 +68,10 @@ export function MessageComposer({
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === "Enter" && !e.shiftKey) {
+        // On mobile viewports (virtual keyboards), let Return/Enter insert newline; tap Send to submit
+        if (typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches) {
+          return;
+        }
         e.preventDefault();
         handleSend();
       }
@@ -134,7 +138,7 @@ export function MessageComposer({
               ? "Read-only — viewers can browse but not reply"
               : sessionExpired
                 ? "Session expired - use a template"
-                : "Type a message... (Shift+Enter for new line)"
+                : "Type a message..."
           }
           disabled={sessionExpired || readOnly}
           rows={1}

@@ -83,56 +83,58 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)}>
-        <TabsList className="bg-slate-900 border border-slate-700">
-          <TabsTrigger
-            value="profile"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <User className="size-4" />
-            Profile
-          </TabsTrigger>
-          <TabsTrigger
-            value="whatsapp"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <Settings className="size-4" />
-            WhatsApp Config
-          </TabsTrigger>
-          <TabsTrigger
-            value="templates"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <MessageSquare className="size-4" />
-            Templates
-          </TabsTrigger>
-          <TabsTrigger
-            value="tags"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <Tag className="size-4" />
-            Tags
-          </TabsTrigger>
-          <TabsTrigger
-            value="appearance"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <Palette className="size-4" />
-            Appearance
-          </TabsTrigger>
-          {/* Members tab is feature-flagged. We render the trigger
-              only when the flag is enabled, so users without the
-              flag see the original 5-tab layout. */}
-          {accountSharingEnabled && (
+      <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)} className="w-full">
+        <div className="w-full overflow-x-auto pb-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <TabsList className="bg-slate-900 border border-slate-700 inline-flex w-max min-w-full justify-start">
             <TabsTrigger
-              value="members"
+              value="profile"
               className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
             >
-              <UsersRound className="size-4" />
-              Members
+              <User className="size-4" />
+              Profile
             </TabsTrigger>
-          )}
-        </TabsList>
+            <TabsTrigger
+              value="whatsapp"
+              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            >
+              <Settings className="size-4" />
+              WhatsApp Config
+            </TabsTrigger>
+            <TabsTrigger
+              value="templates"
+              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            >
+              <MessageSquare className="size-4" />
+              Templates
+            </TabsTrigger>
+            <TabsTrigger
+              value="tags"
+              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            >
+              <Tag className="size-4" />
+              Tags
+            </TabsTrigger>
+            <TabsTrigger
+              value="appearance"
+              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            >
+              <Palette className="size-4" />
+              Appearance
+            </TabsTrigger>
+            {/* Members tab is feature-flagged. We render the trigger
+                only when the flag is enabled, so users without the
+                flag see the original 5-tab layout. */}
+            {accountSharingEnabled && (
+              <TabsTrigger
+                value="members"
+                className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+              >
+                <UsersRound className="size-4" />
+                Members
+              </TabsTrigger>
+            )}
+          </TabsList>
+        </div>
 
         <TabsContent value="profile" className="space-y-6">
           <ProfileForm />

@@ -21,6 +21,7 @@ import {
   Clock,
   ArrowLeft,
   RefreshCw,
+  Info,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ContactSidebar } from "./contact-sidebar";
 import { MessageBubble } from "./message-bubble";
 import { MessageActions } from "./message-actions";
 import { MessageComposer } from "./message-composer";
@@ -173,6 +176,7 @@ export function MessageThread({
     }, 700);
   }, [isRefreshing, onRefresh]);
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
+  const [mobileContactOpen, setMobileContactOpen] = useState(false);
 
   // Profiles are bounded by RLS to rows the current user is allowed to
   // see — today that's just the current user, but the dropdown keeps the
@@ -759,12 +763,18 @@ export function MessageThread({
               <ArrowLeft className="h-5 w-5" />
             </button>
           )}
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-white">
-            {displayName.charAt(0).toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-white">{displayName}</h2>
-            <p className="truncate text-xs text-slate-400">{contact.phone}</p>
+          <div
+            onClick={() => setMobileContactOpen(true)}
+            className="flex min-w-0 items-center gap-2 cursor-pointer group"
+            title="View contact info"
+          >
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-white group-hover:bg-slate-600 transition-colors">
+              {displayName.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-semibold text-white group-hover:text-primary transition-colors">{displayName}</h2>
+              <p className="truncate text-xs text-slate-400">{contact.phone}</p>
+            </div>
           </div>
           {/* Session timer badge — hidden on the narrowest phones so
               the name + back arrow keep their room. */}
@@ -781,6 +791,16 @@ export function MessageThread({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Mobile contact info button */}
+          <button
+            type="button"
+            onClick={() => setMobileContactOpen(true)}
+            aria-label="Contact info"
+            title="Contact Info"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white lg:hidden"
+          >
+            <Info className="h-4 w-4" />
+          </button>
           {/* Manual refresh — forces a refetch of the messages + the
               conversation list (the parent bumps its resyncToken). Useful
               when realtime missed an event or the agent just wants to be
@@ -973,6 +993,18 @@ export function MessageThread({
         onOpenChange={setTemplateModalOpen}
         onSelect={handleSendTemplate}
       />
+
+      {/* Mobile Contact Details Sheet */}
+      <Sheet open={mobileContactOpen} onOpenChange={setMobileContactOpen}>
+        <SheetContent side="right" className="bg-slate-900 border-slate-700 w-full sm:max-w-md p-0">
+          <SheetHeader className="p-4 border-b border-slate-800">
+            <SheetTitle className="text-white text-base">Contact Details</SheetTitle>
+          </SheetHeader>
+          <div className="overflow-y-auto h-[calc(100vh-5rem)]">
+            <ContactSidebar contact={contact} />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

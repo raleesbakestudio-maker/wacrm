@@ -64,7 +64,7 @@ export function EditorHeader() {
         </button>
       </div>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex flex-wrap sm:flex-nowrap min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <Workflow className="h-5 w-5 shrink-0 text-primary" />
           <Input
             value={state.name}
