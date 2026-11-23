@@ -661,6 +661,7 @@ function validateNode(
       const cfg = node.config as {
         mode?: "add" | "remove";
         tag_id?: string;
+        tag_ids?: string[];
         next_node_key?: string;
       };
       if (!cfg.mode || !["add", "remove"].includes(cfg.mode)) {
@@ -672,7 +673,10 @@ function validateNode(
           message: "Set-tag needs a mode (add or remove).",
         });
       }
-      if (!cfg.tag_id) {
+      const hasTag =
+        Boolean(cfg.tag_id?.trim()) ||
+        (Array.isArray(cfg.tag_ids) && cfg.tag_ids.length > 0);
+      if (!hasTag) {
         issues.push({
           severity: "error",
           scope: "node",

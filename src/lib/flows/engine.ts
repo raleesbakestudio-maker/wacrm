@@ -55,6 +55,7 @@ import {
   type SendMessageNodeConfig,
   type SetTagNodeConfig,
   type StartNodeConfig,
+  type TriggerFlowNodeConfig,
   type KeywordTriggerConfig,
   getNodeDelaySeconds,
 } from "./types";
@@ -780,20 +781,29 @@ async function advanceFromNodeKey(
     }
     if (node.node_type === "set_tag") {
       const cfg = node.config as unknown as SetTagNodeConfig;
+      const tagIds: string[] =
+        Array.isArray(cfg.tag_ids) && cfg.tag_ids.length > 0
+          ? cfg.tag_ids
+          : cfg.tag_id
+            ? [cfg.tag_id]
+            : [];
       try {
-        if (cfg.mode === "add") {
-          await db
-            .from("contact_tags")
-            .upsert(
-              { contact_id: run.contact_id!, tag_id: cfg.tag_id },
-              { onConflict: "contact_id,tag_id" },
-            );
-        } else {
-          await db
-            .from("contact_tags")
-            .delete()
-            .eq("contact_id", run.contact_id!)
-            .eq("tag_id", cfg.tag_id);
+        if (run.contact_id && tagIds.length > 0) {
+          if (cfg.mode === "add") {
+            const rows = tagIds.map((tid) => ({
+              contact_id: run.contact_id!,
+              tag_id: tid,
+            }));
+            await db
+              .from("contact_tags")
+              .upsert(rows, { onConflict: "contact_id,tag_id" });
+          } else {
+            await db
+              .from("contact_tags")
+              .delete()
+              .eq("contact_id", run.contact_id!)
+              .in("tag_id", tagIds);
+          }
         }
       } catch (err) {
         // Non-fatal — log + advance. A tag-write failure shouldn't
@@ -842,7 +852,7 @@ async function advanceFromNodeKey(
       return { outcome: "handed_off" };
     }
     if (node.node_type === "trigger_flow") {
-      const cfg = node.config as unknown as { target_flow_id?: string };
+      const cfg = node.config as unknown as TriggerFlowNodeConfig;
       if (!cfg?.target_flow_id) {
         await logEvent(db, run.id, "error", node.node_key, {
           reason: "missing_target_flow_id",
@@ -851,9 +861,38 @@ async function advanceFromNodeKey(
         return { outcome: "completed" };
       }
 
+      // Sync tags on flow transition (add / remove tags)
+      if (run.contact_id) {
+        try {
+          if (Array.isArray(cfg.add_tag_ids) && cfg.add_tag_ids.length > 0) {
+            const addRows = cfg.add_tag_ids.map((tid: string) => ({
+              contact_id: run.contact_id!,
+              tag_id: tid,
+            }));
+            await db
+              .from("contact_tags")
+              .upsert(addRows, { onConflict: "contact_id,tag_id" });
+          }
+          if (Array.isArray(cfg.remove_tag_ids) && cfg.remove_tag_ids.length > 0) {
+            await db
+              .from("contact_tags")
+              .delete()
+              .eq("contact_id", run.contact_id!)
+              .in("tag_id", cfg.remove_tag_ids);
+          }
+        } catch (tagErr) {
+          await logEvent(db, run.id, "error", node.node_key, {
+            reason: "trigger_flow_tag_sync_failed",
+            detail: tagErr instanceof Error ? tagErr.message : String(tagErr),
+          });
+        }
+      }
+
       await logEvent(db, run.id, "completed", node.node_key, {
         reason: "jumped_to_flow",
         target_flow_id: cfg.target_flow_id,
+        added_tags: cfg.add_tag_ids ?? [],
+        removed_tags: cfg.remove_tag_ids ?? [],
       });
       await endRun(
         db,

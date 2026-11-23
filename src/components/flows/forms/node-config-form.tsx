@@ -929,6 +929,157 @@ interface UserTag {
   color?: string;
 }
 
+function useUserTags() {
+  const [tags, setTags] = useState<UserTag[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchTags = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/tags");
+      if (!res.ok) return;
+      const json = (await res.json()) as { tags?: UserTag[] };
+      setTags(json.tags ?? []);
+    } catch {
+      // Tags endpoint absent
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTags();
+  }, [fetchTags]);
+
+  const createTag = useCallback(
+    async (name: string, color?: string): Promise<UserTag | null> => {
+      if (!name.trim()) return null;
+      try {
+        const res = await fetch("/api/tags", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name.trim(), color: color || "#10b981" }),
+        });
+        if (!res.ok) {
+          toast.error("Failed to create tag");
+          return null;
+        }
+        const json = (await res.json()) as { tag?: UserTag; created?: boolean };
+        if (json.tag) {
+          setTags((prev) => {
+            if (prev.some((t) => t.id === json.tag!.id)) return prev;
+            return [...prev, json.tag!].sort((a, b) => a.name.localeCompare(b.name));
+          });
+          toast.success(
+            json.created
+              ? `Tag "${json.tag.name}" created and synced to CRM`
+              : `Tag "${json.tag.name}" selected`
+          );
+          return json.tag;
+        }
+        return null;
+      } catch {
+        toast.error("Network error while creating tag");
+        return null;
+      }
+    },
+    []
+  );
+
+  return { tags, loading, createTag, refreshTags: fetchTags };
+}
+
+function InlineTagCreator({
+  createTag,
+  onCreated,
+  onCancel,
+}: {
+  createTag: (name: string, color?: string) => Promise<UserTag | null>;
+  onCreated: (tag: UserTag) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [color, setColor] = useState("#10b981");
+  const [saving, setSaving] = useState(false);
+
+  const colors = [
+    "#10b981",
+    "#3b82f6",
+    "#f59e0b",
+    "#8b5cf6",
+    "#ef4444",
+    "#ec4899",
+    "#06b6d4",
+  ];
+
+  async function handleSave() {
+    if (!name.trim()) return;
+    setSaving(true);
+    const tag = await createTag(name.trim(), color);
+    setSaving(false);
+    if (tag) {
+      onCreated(tag);
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-slate-700 bg-slate-900/90 p-2.5 space-y-2">
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="New tag name…"
+        className="h-8 bg-slate-800 text-xs"
+        autoFocus
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            handleSave();
+          } else if (e.key === "Escape") {
+            onCancel();
+          }
+        }}
+      />
+      <div className="flex items-center justify-between gap-1">
+        <div className="flex items-center gap-1.5">
+          {colors.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setColor(c)}
+              className={`h-4 w-4 rounded-full transition-transform ${
+                color === c
+                  ? "scale-125 ring-2 ring-white ring-offset-1 ring-offset-slate-900"
+                  : "opacity-70 hover:opacity-100"
+              }`}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={onCancel}
+            className="h-7 px-2 text-xs text-slate-400 hover:text-white"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={saving || !name.trim()}
+            onClick={handleSave}
+            className="h-7 bg-emerald-600 px-2.5 text-xs text-white hover:bg-emerald-500"
+          >
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save Tag"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ConditionForm({
   cfg,
   allNodes,
@@ -940,7 +1091,8 @@ function ConditionForm({
   currentKey: string;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
-  const tags = useUserTags();
+  const { tags, createTag } = useUserTags();
+  const [showCreateTag, setShowCreateTag] = useState(false);
 
   const subject = cfg.subject ?? "var";
   const operator = cfg.operator ?? "equals";
@@ -968,29 +1120,66 @@ function ConditionForm({
           </Select>
         </div>
         <div className="md:col-span-2">
-          <label className="mb-1 block text-xs text-slate-400">
-            {subject === "var"
-              ? "var name"
-              : subject === "tag"
-                ? "Tag"
-                : "Field"}
-          </label>
-          {subject === "tag" && tags.length > 0 ? (
-            <Select
-              value={cfg.subject_key ?? ""}
-              onValueChange={(v) => onUpdateConfig({ subject_key: v })}
-            >
-              <SelectTrigger className="bg-slate-800">
-                <SelectValue placeholder="Pick a tag…" />
-              </SelectTrigger>
-              <SelectContent>
-                {tags.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="block text-xs text-slate-400">
+              {subject === "var"
+                ? "var name"
+                : subject === "tag"
+                  ? "CRM Tag"
+                  : "Field"}
+            </label>
+            {subject === "tag" && (
+              <button
+                type="button"
+                onClick={() => setShowCreateTag(!showCreateTag)}
+                className="text-[11px] font-medium text-emerald-400 hover:text-emerald-300"
+              >
+                {showCreateTag ? "Cancel" : "+ New Tag"}
+              </button>
+            )}
+          </div>
+          {subject === "tag" ? (
+            showCreateTag ? (
+              <InlineTagCreator
+                createTag={createTag}
+                onCreated={(tag) => {
+                  onUpdateConfig({ subject_key: tag.id });
+                  setShowCreateTag(false);
+                }}
+                onCancel={() => setShowCreateTag(false)}
+              />
+            ) : tags.length > 0 ? (
+              <Select
+                value={cfg.subject_key ?? ""}
+                onValueChange={(v) => onUpdateConfig({ subject_key: v })}
+              >
+                <SelectTrigger className="bg-slate-800">
+                  <SelectValue placeholder="Pick a tag…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tags.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-2 w-2 rounded-full shrink-0"
+                          style={{ backgroundColor: t.color || "#10b981" }}
+                        />
+                        <span>{t.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                value={cfg.subject_key ?? ""}
+                onChange={(e) =>
+                  onUpdateConfig({ subject_key: e.target.value })
+                }
+                placeholder="tag UUID (or click + New Tag above)"
+                className="bg-slate-800 font-mono text-xs"
+              />
+            )
           ) : subject === "contact_field" ? (
             <Select
               value={cfg.subject_key ?? ""}
@@ -1083,6 +1272,8 @@ function ConditionForm({
 interface SetTagCfg {
   mode?: "add" | "remove";
   tag_id?: string;
+  tag_name?: string;
+  tag_ids?: string[];
   next_node_key?: string;
 }
 
@@ -1097,7 +1288,10 @@ function SetTagForm({
   currentKey: string;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
-  const tags = useUserTags();
+  const { tags, createTag } = useUserTags();
+  const [showCreateTag, setShowCreateTag] = useState(false);
+
+  const selectedTag = tags.find((t) => t.id === cfg.tag_id);
 
   return (
     <>
@@ -1120,19 +1314,68 @@ function SetTagForm({
           </Select>
         </div>
         <div>
-          <label className="mb-1 block text-xs text-slate-400">Tag</label>
-          {tags.length > 0 ? (
+          <div className="mb-1 flex items-center justify-between">
+            <label className="block text-xs text-slate-400">CRM Tag</label>
+            <button
+              type="button"
+              onClick={() => setShowCreateTag(!showCreateTag)}
+              className="text-[11px] font-medium text-emerald-400 hover:text-emerald-300"
+            >
+              {showCreateTag ? "Cancel" : "+ New Tag"}
+            </button>
+          </div>
+          {showCreateTag ? (
+            <InlineTagCreator
+              createTag={createTag}
+              onCreated={(tag) => {
+                onUpdateConfig({
+                  tag_id: tag.id,
+                  tag_name: tag.name,
+                  tag_ids: [tag.id],
+                });
+                setShowCreateTag(false);
+              }}
+              onCancel={() => setShowCreateTag(false)}
+            />
+          ) : tags.length > 0 ? (
             <Select
               value={cfg.tag_id ?? ""}
-              onValueChange={(v) => onUpdateConfig({ tag_id: v })}
+              onValueChange={(v) => {
+                const picked = tags.find((t) => t.id === v);
+                onUpdateConfig({
+                  tag_id: v,
+                  tag_name: picked?.name ?? "",
+                  tag_ids: [v],
+                });
+              }}
             >
               <SelectTrigger className="bg-slate-800">
-                <SelectValue placeholder="Pick a tag…" />
+                <SelectValue placeholder="Pick a CRM tag…">
+                  {selectedTag ? (
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{
+                          backgroundColor: selectedTag.color || "#10b981",
+                        }}
+                      />
+                      <span>{selectedTag.name}</span>
+                    </div>
+                  ) : cfg.tag_name ? (
+                    <span>{cfg.tag_name}</span>
+                  ) : null}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {tags.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
-                    {t.name}
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: t.color || "#10b981" }}
+                      />
+                      <span>{t.name}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1141,7 +1384,7 @@ function SetTagForm({
             <Input
               value={cfg.tag_id ?? ""}
               onChange={(e) => onUpdateConfig({ tag_id: e.target.value })}
-              placeholder="Tag UUID"
+              placeholder="Tag UUID (or click + New Tag above)"
               className="bg-slate-800 font-mono text-xs"
             />
           )}
@@ -1156,32 +1399,6 @@ function SetTagForm({
       />
     </>
   );
-}
-
-/**
- * Shared loader for both `condition` (subject=tag) and `set_tag`.
- * Falls back to raw UUID input if the endpoint is absent on older
- * deployments — the form remains authorable in that case.
- */
-function useUserTags(): UserTag[] {
-  const [tags, setTags] = useState<UserTag[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/tags").catch(() => null);
-        if (!res || !res.ok) return;
-        const json = (await res.json()) as { tags?: UserTag[] };
-        if (!cancelled) setTags(json.tags ?? []);
-      } catch {
-        // Tags endpoint absent — caller falls back to raw input.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  return tags;
 }
 
 // ============================================================
@@ -1459,6 +1676,10 @@ interface FlowOption {
 interface TriggerFlowCfg {
   target_flow_id?: string;
   target_flow_name?: string;
+  add_tag_ids?: string[];
+  add_tag_names?: string[];
+  remove_tag_ids?: string[];
+  remove_tag_names?: string[];
 }
 
 function useFlowList(): { flows: FlowOption[]; loading: boolean } {
@@ -1498,16 +1719,73 @@ function TriggerFlowForm({
   cfg: TriggerFlowCfg;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
-  const { flows, loading } = useFlowList();
+  const { flows, loading: flowsLoading } = useFlowList();
+  const { tags, createTag } = useUserTags();
+  const [showCreateAddTag, setShowCreateAddTag] = useState(false);
+
   const availableFlows = flows.filter((f) => f.status !== "archived");
+  const addTagIds = cfg.add_tag_ids ?? [];
+  const removeTagIds = cfg.remove_tag_ids ?? [];
+
+  const availableToAddTags = tags.filter((t) => !addTagIds.includes(t.id));
+  const availableToRemoveTags = tags.filter((t) => !removeTagIds.includes(t.id));
+
+  function handleAddTag(tagId: string) {
+    if (!tagId) return;
+    const picked = tags.find((t) => t.id === tagId);
+    const newIds = [...addTagIds, tagId];
+    const newNames = [
+      ...(cfg.add_tag_names ?? []),
+      picked ? picked.name : tagId.slice(0, 8),
+    ];
+    onUpdateConfig({
+      add_tag_ids: newIds,
+      add_tag_names: newNames,
+    });
+  }
+
+  function handleRemoveAddTag(tagId: string) {
+    const idx = addTagIds.indexOf(tagId);
+    const newIds = addTagIds.filter((id) => id !== tagId);
+    const newNames = (cfg.add_tag_names ?? []).filter((_, i) => i !== idx);
+    onUpdateConfig({
+      add_tag_ids: newIds,
+      add_tag_names: newNames,
+    });
+  }
+
+  function handleAddRemoveTag(tagId: string) {
+    if (!tagId) return;
+    const picked = tags.find((t) => t.id === tagId);
+    const newIds = [...removeTagIds, tagId];
+    const newNames = [
+      ...(cfg.remove_tag_names ?? []),
+      picked ? picked.name : tagId.slice(0, 8),
+    ];
+    onUpdateConfig({
+      remove_tag_ids: newIds,
+      remove_tag_names: newNames,
+    });
+  }
+
+  function handleRemoveRemoveTag(tagId: string) {
+    const idx = removeTagIds.indexOf(tagId);
+    const newIds = removeTagIds.filter((id) => id !== tagId);
+    const newNames = (cfg.remove_tag_names ?? []).filter((_, i) => i !== idx);
+    onUpdateConfig({
+      remove_tag_ids: newIds,
+      remove_tag_names: newNames,
+    });
+  }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {/* 1. Target Flow Selection */}
       <div>
         <label className="mb-1 block text-xs font-medium text-slate-300">
           Target Flow (Select flow to jump to)
         </label>
-        {loading ? (
+        {flowsLoading ? (
           <div className="flex h-9 items-center gap-2 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs text-slate-400">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             <span>Loading flows…</span>
@@ -1557,9 +1835,181 @@ function TriggerFlowForm({
             className="bg-slate-800 font-mono text-xs"
           />
         )}
-        <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
-          When this node is reached (e.g. after customer clicks a button wired to this node), the current flow completes and seamlessly launches the selected target flow.
+        <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+          When this node is reached, the current flow completes and seamlessly launches the selected flow.
         </p>
+      </div>
+
+      {/* 2. Tags on Transition Header & Box */}
+      <div className="rounded-lg border border-slate-700/80 bg-slate-900/60 p-3 space-y-3">
+        <div className="border-b border-slate-800 pb-2">
+          <h4 className="text-xs font-semibold text-slate-200">
+            Sync Tags on Transition (ഫ്ലോ മാറുമ്പോൾ ടാഗുകൾ)
+          </h4>
+          <p className="text-[11px] text-slate-400">
+            ഈ ഫ്ലോയിൽ നിന്ന് അടുത്ത ഫ്ലോയിലേക്ക് മാറുമ്പോൾ ഓട്ടോമാറ്റിക് ആയി ടാഗുകൾ ചേർക്കുകയോ ഒഴിവാക്കുകയോ ചെയ്യാം.
+          </p>
+        </div>
+
+        {/* Add Tags */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-emerald-400 flex items-center gap-1.5">
+              <span>+ Add Tags (ചേർക്കേണ്ട ടാഗുകൾ)</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowCreateAddTag(!showCreateAddTag)}
+              className="text-[11px] font-medium text-emerald-400 hover:text-emerald-300"
+            >
+              {showCreateAddTag ? "Cancel" : "+ New CRM Tag"}
+            </button>
+          </div>
+
+          {showCreateAddTag && (
+            <InlineTagCreator
+              createTag={createTag}
+              onCreated={(tag) => {
+                handleAddTag(tag.id);
+                setShowCreateAddTag(false);
+              }}
+              onCancel={() => setShowCreateAddTag(false)}
+            />
+          )}
+
+          {/* Selected Add Tags Chips */}
+          {addTagIds.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 rounded-md border border-slate-700/60 bg-slate-800/60 p-2">
+              {addTagIds.map((tid, idx) => {
+                const tagObj = tags.find((t) => t.id === tid);
+                const tagName =
+                  tagObj?.name || cfg.add_tag_names?.[idx] || tid.slice(0, 8);
+                return (
+                  <span
+                    key={tid}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-300"
+                  >
+                    <span
+                      className="h-1.5 w-1.5 rounded-full shrink-0"
+                      style={{ backgroundColor: tagObj?.color || "#10b981" }}
+                    />
+                    <span>+{tagName}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAddTag(tid)}
+                      className="text-emerald-400/80 hover:text-emerald-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Add Tag Select Dropdown */}
+          {availableToAddTags.length > 0 ? (
+            <Select
+              value=""
+              onValueChange={(v) => {
+                if (typeof v === "string" && v) handleAddTag(v);
+              }}
+            >
+              <SelectTrigger className="h-8 bg-slate-800 text-xs">
+                <SelectValue placeholder="+ Select tag to add on transition…" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableToAddTags.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: t.color || "#10b981" }}
+                      />
+                      <span>{t.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-[11px] text-slate-500">
+              {tags.length === 0
+                ? "No CRM tags yet. Click '+ New CRM Tag' above to create one."
+                : "All available tags added."}
+            </p>
+          )}
+        </div>
+
+        {/* Remove Tags */}
+        <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+          <label className="text-xs font-medium text-rose-400 flex items-center gap-1.5">
+            <span>- Remove Tags (ഒഴിവാക്കേണ്ട ടാഗുകൾ)</span>
+          </label>
+
+          {/* Selected Remove Tags Chips */}
+          {removeTagIds.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 rounded-md border border-slate-700/60 bg-slate-800/60 p-2">
+              {removeTagIds.map((tid, idx) => {
+                const tagObj = tags.find((t) => t.id === tid);
+                const tagName =
+                  tagObj?.name || cfg.remove_tag_names?.[idx] || tid.slice(0, 8);
+                return (
+                  <span
+                    key={tid}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/40 bg-rose-500/20 px-2.5 py-0.5 text-xs font-medium text-rose-300"
+                  >
+                    <span
+                      className="h-1.5 w-1.5 rounded-full shrink-0"
+                      style={{ backgroundColor: tagObj?.color || "#ef4444" }}
+                    />
+                    <span>-{tagName}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRemoveTag(tid)}
+                      className="text-rose-400/80 hover:text-rose-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Remove Tag Select Dropdown */}
+          {availableToRemoveTags.length > 0 ? (
+            <Select
+              value=""
+              onValueChange={(v) => {
+                if (typeof v === "string" && v) handleAddRemoveTag(v);
+              }}
+            >
+              <SelectTrigger className="h-8 bg-slate-800 text-xs">
+                <SelectValue placeholder="- Select tag to remove on transition…" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableToRemoveTags.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: t.color || "#ef4444" }}
+                      />
+                      <span>{t.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-[11px] text-slate-500">
+              {tags.length === 0
+                ? "No CRM tags to remove."
+                : "All tags selected."}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

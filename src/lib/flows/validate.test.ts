@@ -559,3 +559,71 @@ describe("reachableFromEntry", () => {
     expect(set).toEqual(new Set(["a", "b"]));
   });
 });
+
+describe("validateFlowForActivation — set_tag & trigger_flow with tags", () => {
+  it("accepts set_tag with tag_id", () => {
+    const nodes = [
+      { node_key: "start", node_type: "start", config: { next_node_key: "tag1" } },
+      {
+        node_key: "tag1",
+        node_type: "set_tag",
+        config: { mode: "add", tag_id: "tag-uuid-1", next_node_key: "end" },
+      },
+      { node_key: "end", node_type: "end", config: {} },
+    ];
+    const issues = validateFlowForActivation(validFlow, nodes);
+    expect(issues).toEqual([]);
+  });
+
+  it("accepts set_tag with multi tag_ids", () => {
+    const nodes = [
+      { node_key: "start", node_type: "start", config: { next_node_key: "tag1" } },
+      {
+        node_key: "tag1",
+        node_type: "set_tag",
+        config: {
+          mode: "remove",
+          tag_ids: ["tag-uuid-1", "tag-uuid-2"],
+          next_node_key: "end",
+        },
+      },
+      { node_key: "end", node_type: "end", config: {} },
+    ];
+    const issues = validateFlowForActivation(validFlow, nodes);
+    expect(issues).toEqual([]);
+  });
+
+  it("flags set_tag when no tag is specified", () => {
+    const nodes = [
+      { node_key: "start", node_type: "start", config: { next_node_key: "tag1" } },
+      {
+        node_key: "tag1",
+        node_type: "set_tag",
+        config: { mode: "add", next_node_key: "end" },
+      },
+      { node_key: "end", node_type: "end", config: {} },
+    ];
+    const issues = validateFlowForActivation(validFlow, nodes);
+    expect(issues.some((i) => i.node_key === "tag1" && i.field === "tag_id")).toBe(true);
+  });
+
+  it("accepts trigger_flow with transition tags", () => {
+    const nodes = [
+      { node_key: "start", node_type: "start", config: { next_node_key: "tf" } },
+      {
+        node_key: "tf",
+        node_type: "trigger_flow",
+        config: {
+          target_flow_id: "flow-uuid-dest",
+          target_flow_name: "Follow-up Flow",
+          add_tag_ids: ["tag-add-1"],
+          add_tag_names: ["VIP Client"],
+          remove_tag_ids: ["tag-rem-1"],
+          remove_tag_names: ["Lead"],
+        },
+      },
+    ];
+    const issues = validateFlowForActivation(validFlow, nodes);
+    expect(issues).toEqual([]);
+  });
+});

@@ -194,6 +194,10 @@ export interface SetTagNodeConfig {
   mode: "add" | "remove";
   /** Tag UUID. The builder picks from the user's existing tags. */
   tag_id: string;
+  /** Cached tag name for quick display in canvas without an async fetch. */
+  tag_name?: string;
+  /** Optional multi-tag support: if provided, engine applies all */
+  tag_ids?: string[];
   next_node_key: string;
 }
 
@@ -202,6 +206,14 @@ export interface TriggerFlowNodeConfig {
   target_flow_id: string;
   /** Optional cached name of the target flow for canvas display. */
   target_flow_name?: string;
+  /** Optional tag UUIDs to add to the contact during flow transition. */
+  add_tag_ids?: string[];
+  /** Optional cached tag names for canvas display. */
+  add_tag_names?: string[];
+  /** Optional tag UUIDs to remove from the contact during flow transition. */
+  remove_tag_ids?: string[];
+  /** Optional cached tag names for canvas display. */
+  remove_tag_names?: string[];
 }
 
 // Terminal nodes carry no config — they just stop the run.

@@ -3,7 +3,7 @@ import {
   defaultConfigFor,
   uniqueNodeKey,
 } from "./flow-editor-state";
-import type { BuilderNode, NodeType } from "./shared";
+import { summarizeNode, type BuilderNode, type NodeType } from "./shared";
 
 describe("uniqueNodeKey", () => {
   it("returns the base key when it isn't taken", () => {
@@ -95,5 +95,45 @@ describe("defaultConfigFor", () => {
       target_flow_id: "",
       target_flow_name: "",
     });
+  });
+});
+
+describe("summarizeNode — tags and flow transitions", () => {
+  it("formats set_tag using tag_name when present", () => {
+    const summary = summarizeNode({
+      node_key: "k",
+      node_type: "set_tag",
+      config: {
+        mode: "add",
+        tag_name: "VIP Buyer",
+        tag_id: "uuid-1234",
+      },
+    });
+    expect(summary).toBe('Add tag "VIP Buyer"');
+  });
+
+  it("formats trigger_flow with target name and tag transition badge", () => {
+    const summary = summarizeNode({
+      node_key: "k",
+      node_type: "trigger_flow",
+      config: {
+        target_flow_name: "Nurturing Flow",
+        add_tag_ids: ["t1", "t2"],
+        remove_tag_ids: ["t3"],
+      },
+    });
+    expect(summary).toBe("➡️ Jump to: Nurturing Flow (+2/-1 tags)");
+  });
+
+  it("formats trigger_flow with only added tags", () => {
+    const summary = summarizeNode({
+      node_key: "k",
+      node_type: "trigger_flow",
+      config: {
+        target_flow_name: "Support Flow",
+        add_tag_ids: ["t1"],
+      },
+    });
+    expect(summary).toBe("➡️ Jump to: Support Flow (+1 tag)");
   });
 });

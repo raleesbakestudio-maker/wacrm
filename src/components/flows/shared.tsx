@@ -251,10 +251,11 @@ export function summarizeNode(node: BuilderNode): string | null {
     }
     case "set_tag": {
       const mode = cfg.mode === "remove" ? "Remove" : "Add";
+      const tagName = typeof cfg.tag_name === "string" ? cfg.tag_name : "";
       const tagId = typeof cfg.tag_id === "string" ? cfg.tag_id : "";
-      // No tag name available without an async lookup here; show a
-      // short prefix of the UUID so users can disambiguate between
-      // multiple set_tag nodes at a glance.
+      if (tagName) {
+        return `${mode} tag "${truncate(tagName, 22)}"`;
+      }
       return tagId ? `${mode} tag ${tagId.slice(0, 8)}…` : `${mode} tag (none picked)`;
     }
     case "handoff": {
@@ -264,8 +265,18 @@ export function summarizeNode(node: BuilderNode): string | null {
     case "trigger_flow": {
       const targetName =
         typeof cfg.target_flow_name === "string" ? cfg.target_flow_name : "";
+      const addCount = Array.isArray(cfg.add_tag_ids) ? cfg.add_tag_ids.length : 0;
+      const remCount = Array.isArray(cfg.remove_tag_ids) ? cfg.remove_tag_ids.length : 0;
+      let tagBadge = "";
+      if (addCount > 0 && remCount > 0) {
+        tagBadge = ` (+${addCount}/-${remCount} tags)`;
+      } else if (addCount > 0) {
+        tagBadge = ` (+${addCount} tag${addCount > 1 ? "s" : ""})`;
+      } else if (remCount > 0) {
+        tagBadge = ` (-${remCount} tag${remCount > 1 ? "s" : ""})`;
+      }
       return targetName
-        ? `➡️ Jump to: ${truncate(targetName, 40)}`
+        ? `➡️ Jump to: ${truncate(targetName, 26)}${tagBadge}`
         : "Pick target flow…";
     }
   }
