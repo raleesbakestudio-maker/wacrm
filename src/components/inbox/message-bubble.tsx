@@ -110,7 +110,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
     <img
       src={src ?? ""}
       alt={alt}
-      className="max-h-64 max-w-60 rounded-lg object-cover"
+      className="max-h-64 max-w-full sm:max-w-60 rounded-lg object-cover"
       onError={() => setError(true)}
     />
   );
@@ -120,7 +120,7 @@ function MessageContent({ message }: { message: Message }) {
   switch (message.content_type) {
     case "text":
       return (
-        <p className="whitespace-pre-wrap break-words text-sm">
+        <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] text-sm leading-relaxed select-text">
           {message.content_text}
         </p>
       );
@@ -134,7 +134,7 @@ function MessageContent({ message }: { message: Message }) {
             <MediaUnavailable label="Image" />
           )}
           {message.content_text && (
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">
+            <p className="mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] text-sm leading-relaxed select-text">
               {message.content_text}
             </p>
           )}
@@ -148,13 +148,13 @@ function MessageContent({ message }: { message: Message }) {
             <video
               src={message.media_url}
               controls
-              className="max-h-64 max-w-60 rounded-lg"
+              className="max-h-64 max-w-full sm:max-w-60 rounded-lg"
             />
           ) : (
             <MediaUnavailable label="Video" />
           )}
           {message.content_text && (
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">
+            <p className="mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] text-sm leading-relaxed select-text">
               {message.content_text}
             </p>
           )}
@@ -165,7 +165,7 @@ function MessageContent({ message }: { message: Message }) {
       return (
         <div>
           {message.media_url ? (
-            <audio src={message.media_url} controls className="max-w-60" />
+            <audio src={message.media_url} controls className="max-w-full sm:max-w-60" />
           ) : (
             <MediaUnavailable label="Audio" />
           )}
@@ -181,10 +181,10 @@ function MessageContent({ message }: { message: Message }) {
           href={message.media_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 rounded-lg bg-slate-700/50 px-3 py-2 text-sm hover:bg-slate-700"
+          className="flex items-center gap-2 rounded-lg bg-slate-700/50 px-3 py-2 text-sm hover:bg-slate-700 max-w-full overflow-hidden"
         >
           <FileText className="h-5 w-5 shrink-0 text-slate-400" />
-          <span className="truncate">
+          <span className="truncate break-all">
             {message.content_text || "Document"}
           </span>
         </a>
@@ -198,7 +198,7 @@ function MessageContent({ message }: { message: Message }) {
             Template
           </span>
           {message.content_text && (
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">
+            <p className="mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] text-sm leading-relaxed select-text">
               {message.content_text}
             </p>
           )}
@@ -209,7 +209,7 @@ function MessageContent({ message }: { message: Message }) {
       return (
         <div className="flex items-center gap-2 text-sm">
           <MapPin className="h-4 w-4 shrink-0 text-slate-400" />
-          <span>{message.content_text || "Location shared"}</span>
+          <span className="break-words [overflow-wrap:anywhere]">{message.content_text || "Location shared"}</span>
         </div>
       );
 
@@ -225,7 +225,7 @@ function MessageContent({ message }: { message: Message }) {
             <CornerDownLeft className="h-3 w-3" />
             Button reply
           </span>
-          <p className="whitespace-pre-wrap break-words text-sm">
+          <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] text-sm leading-relaxed select-text">
             {message.content_text || "[Interactive reply]"}
           </p>
         </div>
@@ -234,7 +234,7 @@ function MessageContent({ message }: { message: Message }) {
 
     default:
       return (
-        <p className="whitespace-pre-wrap break-words text-sm">
+        <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] text-sm leading-relaxed select-text">
           {message.content_text || "[Unsupported message type]"}
         </p>
       );
@@ -262,7 +262,7 @@ export function MessageBubble({
     >
       <div
         className={cn(
-          "relative rounded-2xl px-3 py-2",
+          "relative max-w-full rounded-2xl px-3 py-2 overflow-hidden break-words [overflow-wrap:anywhere]",
           isAgent
             ? "rounded-br-md bg-primary text-primary-foreground"
             : "rounded-bl-md bg-slate-800 text-slate-100",

@@ -298,9 +298,9 @@ export function TemplateManager() {
       }
       toast.success(
         `Synced ${data.total} template${data.total === 1 ? '' : 's'} from Meta` +
-          (data.inserted || data.updated
-            ? ` (${data.inserted} new, ${data.updated} updated)`
-            : ''),
+        (data.inserted || data.updated
+          ? ` (${data.inserted} new, ${data.updated} updated)`
+          : ''),
       );
       if (Array.isArray(data.errors) && data.errors.length > 0) {
         const preview = data.errors.slice(0, 3).map(
@@ -513,13 +513,12 @@ export function TemplateManager() {
                       )}
                       {template.quality_score && (
                         <span
-                          className={`text-[10px] uppercase font-medium ${
-                            template.quality_score === 'GREEN'
-                              ? 'text-emerald-400'
-                              : template.quality_score === 'YELLOW'
-                                ? 'text-yellow-400'
-                                : 'text-red-400'
-                          }`}
+                          className={`text-[10px] uppercase font-medium ${template.quality_score === 'GREEN'
+                            ? 'text-emerald-400'
+                            : template.quality_score === 'YELLOW'
+                              ? 'text-yellow-400'
+                              : 'text-red-400'
+                            }`}
                           title="Meta quality score"
                         >
                           {template.quality_score}
@@ -707,11 +706,11 @@ export function TemplateManager() {
                   {editingId
                     ? 'Language is fixed once a template exists on Meta.'
                     : (
-                        <>
-                          Must match the exact code on Meta — <code>en_US</code>{' '}
-                          and <code>en</code> are distinct.
-                        </>
-                      )}
+                      <>
+                        Must match the exact code on Meta — <code>en_US</code>{' '}
+                        and <code>en</code> are distinct.
+                      </>
+                    )}
                 </p>
               </div>
             </div>
