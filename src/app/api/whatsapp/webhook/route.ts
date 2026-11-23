@@ -6,6 +6,7 @@ import { normalizePhone, phonesMatch } from '@/lib/whatsapp/phone-utils'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
+import { matchAndSendQuickReply } from '@/lib/whatsapp/quick-reply-dispatcher'
 import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
@@ -277,7 +278,8 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           // inserts that need it for NOT NULL FK compliance. Always
           // the admin who saved the WhatsApp config.
           config.user_id,
-          decryptedAccessToken
+          decryptedAccessToken,
+          config.phone_number_id
         )
       }
     }
@@ -511,7 +513,8 @@ async function processMessage(
   // (contacts, conversations). Always the admin who saved the
   // WhatsApp config; the choice is arbitrary post-017 but stable.
   configOwnerUserId: string,
-  accessToken: string
+  accessToken: string,
+  phoneNumberId: string
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -679,12 +682,25 @@ async function processMessage(
   })
   const flowConsumed = flowResult.consumed
 
+  const inboundText = contentText ?? message.text?.body ?? ''
+
+  // Quick Reply / Simple Bot match (e.g. '1', 'starter', 'payment', 'hi')
+  if (!flowConsumed && inboundText) {
+    matchAndSendQuickReply({
+      accountId,
+      phoneNumberId,
+      accessToken,
+      toPhone: contactRecord.phone,
+      inboundText,
+      conversationId: conversation.id,
+    }).catch((err) => console.error('[quick-replies] auto-reply failed:', err))
+  }
+
   // Fire any automations that react to this webhook event. All dispatches
   // run here (not earlier) so the contact, conversation, and inbound
   // message all exist before any step — including send_message — runs.
   // Fire-and-forget: a slow or failing automation must not block the
   // webhook's 200 OK response to Meta.
-  const inboundText = contentText ?? message.text?.body ?? ''
   const automationTriggers: (
     | 'new_contact_created'
     | 'first_inbound_message'

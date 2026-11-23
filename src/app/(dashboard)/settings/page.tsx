@@ -9,6 +9,7 @@ import {
   User,
   Palette,
   UsersRound,
+  Zap,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
@@ -19,11 +20,13 @@ import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { MembersTab } from '@/components/settings/members-tab';
+import { QuickRepliesTab } from '@/components/settings/quick-replies-tab';
 
 const TAB_VALUES = [
   'profile',
   'members',
   'whatsapp',
+  'replies',
   'templates',
   'tags',
   'appearance',
@@ -99,6 +102,13 @@ export default function SettingsPage() {
               WhatsApp Config
             </TabsTrigger>
             <TabsTrigger
+              value="replies"
+              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            >
+              <Zap className="size-4 text-amber-400" />
+              Quick Replies & Bot
+            </TabsTrigger>
+            <TabsTrigger
               value="templates"
               className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
             >
@@ -134,6 +144,10 @@ export default function SettingsPage() {
 
         <TabsContent value="whatsapp">
           <WhatsAppConfig />
+        </TabsContent>
+
+        <TabsContent value="replies">
+          <QuickRepliesTab />
         </TabsContent>
 
         <TabsContent value="templates">

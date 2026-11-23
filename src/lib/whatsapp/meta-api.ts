@@ -259,7 +259,7 @@ export async function sendTextMessage(
   return { messageId: data.messages[0].id }
 }
 
-export type MediaKind = 'image' | 'video' | 'document'
+export type MediaKind = 'image' | 'video' | 'document' | 'audio'
 
 export interface SendMediaMessageArgs {
   phoneNumberId: string
@@ -268,17 +268,17 @@ export interface SendMediaMessageArgs {
   kind: MediaKind
   /** Public URL Meta fetches at send time. */
   link: string
-  /** Optional caption — Meta caps at 1024 chars. Documents + images + videos all accept it. */
+  /** Optional caption — Meta caps at 1024 chars. Documents + images + videos all accept it (Meta disallows caption on audio). */
   caption?: string
-  /** Document-only. Shown in the recipient's chat as the file name. Ignored for image/video. */
+  /** Document-only. Shown in the recipient's chat as the file name. Ignored for image/video/audio. */
   filename?: string
   contextMessageId?: string
 }
 
 /**
- * Send an image, video, or document via a public URL.
+ * Send an image, video, document, or audio via a public URL.
  *
- * Used by the Flows engine's `send_media` node. Mirrors
+ * Used by Quick Replies and the Flows engine's `send_media` node. Mirrors
  * `sendTextMessage` — single fetch, throws on non-2xx, returns Meta's
  * message id.
  */
@@ -290,7 +290,7 @@ export async function sendMediaMessage(
   const url = `${META_API_BASE}/${phoneNumberId}/messages`
 
   const media: Record<string, unknown> = { link }
-  if (caption) media.caption = caption
+  if (caption && kind !== 'audio') media.caption = caption
   if (kind === 'document' && filename) media.filename = filename
 
   const body: Record<string, unknown> = {

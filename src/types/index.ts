@@ -531,3 +531,18 @@ export interface AutomationLog {
   created_at: string;
   contact?: Contact;
 }
+
+export interface QuickReply {
+  id: string;
+  account_id: string;
+  shortcut: string;
+  title: string;
+  message: string;
+  media_url?: string | null;
+  media_type?: 'none' | 'image' | 'document' | 'audio' | 'video';
+  media_filename?: string | null;
+  auto_keywords?: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}

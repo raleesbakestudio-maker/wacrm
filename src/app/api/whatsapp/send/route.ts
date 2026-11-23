@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
+import { sendTextMessage, sendTemplateMessage, sendMediaMessage, type MediaKind } from '@/lib/whatsapp/meta-api'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import {
@@ -70,6 +70,13 @@ export async function POST(request: Request) {
     if (message_type === 'template' && !template_name) {
       return NextResponse.json(
         { error: 'template_name is required for template messages' },
+        { status: 400 }
+      )
+    }
+
+    if (['image', 'document', 'audio', 'video'].includes(message_type) && !media_url) {
+      return NextResponse.json(
+        { error: 'media_url is required for media messages' },
         { status: 400 }
       )
     }
@@ -237,6 +244,38 @@ export async function POST(request: Request) {
         })
         return result.messageId
       }
+
+      if (['image', 'document', 'audio', 'video'].includes(message_type)) {
+        if (!media_url) {
+          throw new Error(`media_url is required for ${message_type} messages`)
+        }
+        const result = await sendMediaMessage({
+          phoneNumberId: config.phone_number_id,
+          accessToken,
+          to: phone,
+          kind: message_type as MediaKind,
+          link: media_url,
+          caption: content_text || undefined,
+          filename: body.media_filename || undefined,
+          contextMessageId,
+        })
+
+        if (message_type === 'audio' && content_text?.trim()) {
+          try {
+            await sendTextMessage({
+              phoneNumberId: config.phone_number_id,
+              accessToken,
+              to: phone,
+              text: content_text.trim(),
+            })
+          } catch (textErr) {
+            console.warn('[whatsapp/send] Audio follow-up text send failed:', textErr)
+          }
+        }
+
+        return result.messageId
+      }
+
       const result = await sendTextMessage({
         phoneNumberId: config.phone_number_id,
         accessToken,

@@ -495,8 +495,17 @@ export function MessageThread({
   }, [messages]);
 
   const handleSend = useCallback(
-    async (text: string, replyToId?: string) => {
+    async (
+      text: string,
+      replyToId?: string,
+      mediaUrl?: string | null,
+      mediaType?: string | null,
+      mediaFilename?: string | null
+    ) => {
       if (!conversation) return;
+
+      const hasMedia = Boolean(mediaUrl && mediaType && mediaType !== "none");
+      const contentType = hasMedia ? mediaType! : "text";
 
       const tempId = `temp-${Date.now()}`;
 
@@ -505,8 +514,9 @@ export function MessageThread({
         id: tempId,
         conversation_id: conversation.id,
         sender_type: "agent",
-        content_type: "text",
-        content_text: text,
+        content_type: contentType as Message["content_type"],
+        content_text: text || undefined,
+        media_url: mediaUrl || undefined,
         status: "sending",
         created_at: new Date().toISOString(),
         reply_to_message_id: replyToId,
@@ -520,8 +530,10 @@ export function MessageThread({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             conversation_id: conversation.id,
-            message_type: "text",
-            content_text: text,
+            message_type: contentType,
+            content_text: text || undefined,
+            media_url: mediaUrl || undefined,
+            media_filename: mediaFilename || undefined,
             reply_to_message_id: replyToId,
           }),
         });
