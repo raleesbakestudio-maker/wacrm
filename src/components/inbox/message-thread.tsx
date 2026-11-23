@@ -22,6 +22,7 @@ import {
   ArrowLeft,
   RefreshCw,
   Info,
+  Tag as TagIcon,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -791,15 +792,16 @@ export function MessageThread({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Mobile contact info button */}
+          {/* Mobile Profile & Tags button */}
           <button
             type="button"
             onClick={() => setMobileContactOpen(true)}
-            aria-label="Contact info"
-            title="Contact Info"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white lg:hidden"
+            aria-label="Profile and tags"
+            title="Profile & Tags"
+            className="inline-flex items-center gap-1.5 h-7 px-2 text-xs rounded-md border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white lg:hidden"
           >
-            <Info className="h-4 w-4" />
+            <TagIcon className="h-3 w-3 text-primary" />
+            <span className="text-[11px] font-medium">Profile & Tags</span>
           </button>
           {/* Manual refresh — forces a refetch of the messages + the
               conversation list (the parent bumps its resyncToken). Useful
@@ -994,13 +996,13 @@ export function MessageThread({
         onSelect={handleSendTemplate}
       />
 
-      {/* Mobile Contact Details Sheet */}
+      {/* Mobile Contact Details & Tags Sheet */}
       <Sheet open={mobileContactOpen} onOpenChange={setMobileContactOpen}>
-        <SheetContent side="right" className="bg-slate-900 border-slate-700 w-full sm:max-w-md p-0">
-          <SheetHeader className="p-4 border-b border-slate-800">
-            <SheetTitle className="text-white text-base">Contact Details</SheetTitle>
+        <SheetContent side="right" className="bg-slate-900 border-slate-700 w-[90vw] sm:max-w-md p-0 gap-0">
+          <SheetHeader className="p-4 border-b border-slate-800 pr-12">
+            <SheetTitle className="text-white text-base font-semibold">Profile & Tags</SheetTitle>
           </SheetHeader>
-          <div className="overflow-y-auto h-[calc(100vh-5rem)]">
+          <div className="flex-1 overflow-hidden min-h-0">
             <ContactSidebar contact={contact} />
           </div>
         </SheetContent>
