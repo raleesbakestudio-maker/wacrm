@@ -14,7 +14,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Send, Loader2, Users, Save } from 'lucide-react';
+import {
+  ArrowLeft,
+  Send,
+  Loader2,
+  Users,
+  Save,
+  Calendar,
+  Clock,
+  Smartphone,
+  CheckCircle,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { validateAndFormatWhatsAppPhone } from '@/lib/whatsapp/phone-utils';
+import type { VariableMapping } from '@/hooks/use-broadcast-sending';
+import { cn } from '@/lib/utils';
 
 interface AudienceConfig {
   type: string;
@@ -27,7 +41,8 @@ interface Step4Props {
   onNameChange: (name: string) => void;
   template: MessageTemplate;
   audience: AudienceConfig;
-  onSend: () => void;
+  variables?: Record<string, VariableMapping>;
+  onSend: (scheduledAt?: string | null) => void;
   onSaveDraft?: () => void;
   onBack: () => void;
   isProcessing: boolean;
@@ -39,6 +54,7 @@ export function Step4ScheduleSend({
   onNameChange,
   template,
   audience,
+  variables = {},
   onSend,
   onSaveDraft,
   onBack,
@@ -48,6 +64,18 @@ export function Step4ScheduleSend({
   const [showConfirm, setShowConfirm] = useState(false);
   const [estimatedReach, setEstimatedReach] = useState<number>(0);
   const [loadingReach, setLoadingReach] = useState(true);
+
+  // Test send state
+  const [testPhone, setTestPhone] = useState('');
+  const [sendingTest, setSendingTest] = useState(false);
+
+  // Delivery timing state: 'now' vs 'later'
+  const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
+  // Default scheduled time = 1 hour from now
+  const defaultScheduleTime = new Date(Date.now() + 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 16);
+  const [scheduledTime, setScheduledTime] = useState(defaultScheduleTime);
 
   useEffect(() => {
     async function calculateReach() {
@@ -81,6 +109,73 @@ export function Step4ScheduleSend({
     calculateReach();
   }, [audience]);
 
+  async function handleSendTest() {
+    const check = validateAndFormatWhatsAppPhone(testPhone);
+    if (!check.isValid) {
+      toast.error(check.error || 'സാധുവായ ഒരു WhatsApp നമ്പർ നൽകുക (ഉദാ: +91 98765 43210)');
+      return;
+    }
+
+    setSendingTest(true);
+    try {
+      // Resolve sample params from variables
+      const keys = Object.keys(variables).sort((a, b) => Number(a) - Number(b));
+      const sampleParams = keys.map((k) => variables[k]?.value || `Sample ${k}`);
+
+      const res = await fetch('/api/whatsapp/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipients: [{ phone: check.phone, params: sampleParams }],
+          template_name: template.name,
+          template_language: template.language ?? 'en_US',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Test send failed');
+      }
+
+      const item = data.results?.[0];
+      if (item?.status === 'sent') {
+        toast.success(`ടെസ്റ്റ് മെസ്സേജ് ${check.phone}-ലേക്ക് വിജയകരമായി അയച്ചു! വാട്സാപ്പ് പരിശോധിക്കുക.`);
+      } else {
+        const err = item?.error || 'Test message could not be delivered';
+        if (/131030|not in allowed list/i.test(err)) {
+          toast.error(
+            "Meta Sandbox Error: ഈ നമ്പർ നിങ്ങളുടെ Meta Developer Dashboard-ൽ 'To' ലിസ്റ്റിൽ ആഡ് ചെയ്തിട്ടുണ്ടോ എന്ന് പരിശോധിക്കുക."
+          );
+        } else {
+          toast.error(`ടെസ്റ്റ് അയക്കാൻ കഴിഞ്ഞില്ല: ${err}`);
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error sending test message';
+      toast.error(msg);
+    } finally {
+      setSendingTest(false);
+    }
+  }
+
+  function handleConfirmAction() {
+    setShowConfirm(false);
+    if (scheduleMode === 'later') {
+      if (!scheduledTime) {
+        toast.error('ഷെഡ്യൂൾ ചെയ്യാനുള്ള തീയതിയും സമയവും തിരഞ്ഞെടുക്കുക.');
+        return;
+      }
+      const dateObj = new Date(scheduledTime);
+      if (dateObj.getTime() <= Date.now()) {
+        toast.error('ഭാവിയിലെ ഒരു തീയതിയും സമയവും തിരഞ്ഞെടുക്കുക.');
+        return;
+      }
+      onSend(dateObj.toISOString());
+    } else {
+      onSend(null);
+    }
+  }
+
   const audienceLabel =
     audience.type === 'all'
       ? 'All Contacts'
@@ -95,7 +190,7 @@ export function Step4ScheduleSend({
       <div>
         <h2 className="text-lg font-semibold text-white">Review & Send</h2>
         <p className="mt-1 text-sm text-slate-400">
-          Name your broadcast, review the details, and send.
+          Name your broadcast, test on WhatsApp, choose timing, and send.
         </p>
       </div>
 
@@ -116,11 +211,11 @@ export function Step4ScheduleSend({
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
             <p className="text-xs text-slate-400">Template</p>
-            <p className="text-white">{template.name}</p>
+            <p className="text-white font-medium">{template.name}</p>
           </div>
           <div>
             <p className="text-xs text-slate-400">Audience</p>
-            <p className="text-white">{audienceLabel}</p>
+            <p className="text-white font-medium">{audienceLabel}</p>
           </div>
           <div>
             <p className="text-xs text-slate-400">Estimated Reach</p>
@@ -130,7 +225,7 @@ export function Step4ScheduleSend({
               ) : (
                 <>
                   <Users className="h-3.5 w-3.5 text-primary" />
-                  <p className="font-medium text-white">{estimatedReach.toLocaleString()}</p>
+                  <p className="font-medium text-white">{estimatedReach.toLocaleString()} contacts</p>
                 </>
               )}
             </div>
@@ -140,6 +235,121 @@ export function Step4ScheduleSend({
             <p className="text-white">{template.language ?? 'en_US'}</p>
           </div>
         </div>
+      </div>
+
+      {/* Send a Test Message Card */}
+      <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-4 w-4 text-emerald-400" />
+            <p className="text-sm font-medium text-white">Send a Test Message (ടെസ്റ്റ് മെസ്സേജ്)</p>
+          </div>
+          <span className="text-xs text-emerald-400/80 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+            Recommended
+          </span>
+        </div>
+        <p className="text-xs text-slate-400">
+          എല്ലാവർക്കും അയക്കുന്നതിന് മുൻപ് നിങ്ങളുടെ സ്വന്തം വാട്സാപ്പ് നമ്പറിലേക്ക് ഒരു ടെസ്റ്റ് അയച്ച് ഉറപ്പുവരുത്തുക:
+        </p>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <Input
+            value={testPhone}
+            onChange={(e) => setTestPhone(e.target.value)}
+            placeholder="+91 98765 43210 or 9876543210"
+            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 text-sm"
+          />
+          <Button
+            type="button"
+            onClick={handleSendTest}
+            disabled={sendingTest || !testPhone.trim()}
+            className="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50"
+          >
+            {sendingTest ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> Sending…
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-1.5" /> Send Test
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Delivery Timing Card */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 space-y-3">
+        <p className="text-sm font-medium text-white flex items-center gap-2">
+          <Clock className="h-4 w-4 text-primary" /> Delivery Time (അയക്കേണ്ട സമയം)
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setScheduleMode('now')}
+            className={cn(
+              'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors cursor-pointer',
+              scheduleMode === 'now'
+                ? 'border-primary bg-primary/10 text-white'
+                : 'border-slate-800 bg-slate-800/40 text-slate-400 hover:border-slate-700'
+            )}
+          >
+            <div
+              className={cn(
+                'size-4 rounded-full border flex items-center justify-center shrink-0',
+                scheduleMode === 'now' ? 'border-primary bg-primary' : 'border-slate-600'
+              )}
+            >
+              {scheduleMode === 'now' && <div className="size-1.5 rounded-full bg-white" />}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white">Send Now</p>
+              <p className="text-xs text-slate-400">തത്സമയം ഉടൻ തന്നെ അയക്കുക</p>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setScheduleMode('later')}
+            className={cn(
+              'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors cursor-pointer',
+              scheduleMode === 'later'
+                ? 'border-primary bg-primary/10 text-white'
+                : 'border-slate-800 bg-slate-800/40 text-slate-400 hover:border-slate-700'
+            )}
+          >
+            <div
+              className={cn(
+                'size-4 rounded-full border flex items-center justify-center shrink-0',
+                scheduleMode === 'later' ? 'border-primary bg-primary' : 'border-slate-600'
+              )}
+            >
+              {scheduleMode === 'later' && <div className="size-1.5 rounded-full bg-white" />}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white">Schedule for Later</p>
+              <p className="text-xs text-slate-400">മറ്റൊരു സമയത്തേക്ക് ഷെഡ്യൂൾ ചെയ്യുക</p>
+            </div>
+          </button>
+        </div>
+
+        {scheduleMode === 'later' && (
+          <div className="pt-2 space-y-1.5 border-t border-slate-800">
+            <label className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-primary" />
+              Select Date & Time (നിശ്ചിത തീയതിയും സമയവും നൽകുക):
+            </label>
+            <Input
+              type="datetime-local"
+              value={scheduledTime}
+              min={new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)}
+              onChange={(e) => setScheduledTime(e.target.value)}
+              className="border-slate-700 bg-slate-800 text-white"
+            />
+            <p className="text-[11px] text-slate-500">
+              ഈ സമയത്ത് മെസ്സേജ് ഓട്ടോമാറ്റിക് ആയി അയക്കപ്പെടും.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Processing overlay */}
@@ -186,49 +396,85 @@ export function Step4ScheduleSend({
           )}
 
           <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-          <DialogTrigger
-            render={
-              <Button
-                disabled={!name.trim() || isProcessing}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              />
-            }
-          >
-            <Send className="h-4 w-4" />
-            Send Broadcast
-          </DialogTrigger>
-          <DialogContent className="border-slate-700 bg-slate-900 sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-white">Confirm Broadcast</DialogTitle>
-              <DialogDescription className="text-slate-400">
-                You are about to send this broadcast to{' '}
-                <span className="font-medium text-white">{estimatedReach.toLocaleString()}</span>{' '}
-                contacts using the{' '}
-                <span className="font-medium text-white">{template.name}</span> template.
-                This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setShowConfirm(false)}
-                className="border-slate-700 text-slate-300"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowConfirm(false);
-                  onSend();
-                }}
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                <Send className="h-4 w-4" />
-                Confirm & Send
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            <DialogTrigger
+              render={
+                <Button
+                  disabled={!name.trim() || isProcessing}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                />
+              }
+            >
+              {scheduleMode === 'later' ? (
+                <>
+                  <Calendar className="h-4 w-4 mr-1.5" />
+                  Schedule Broadcast
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-1.5" />
+                  Send Broadcast
+                </>
+              )}
+            </DialogTrigger>
+            <DialogContent className="border-slate-700 bg-slate-900 sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-white">
+                  {scheduleMode === 'later' ? 'Confirm Scheduled Broadcast' : 'Confirm Broadcast'}
+                </DialogTitle>
+                <DialogDescription className="text-slate-400">
+                  {scheduleMode === 'later' ? (
+                    <>
+                      You are scheduling this broadcast for{' '}
+                      <span className="font-medium text-white">
+                        {new Date(scheduledTime).toLocaleString()}
+                      </span>{' '}
+                      to{' '}
+                      <span className="font-medium text-white">
+                        {estimatedReach.toLocaleString()}
+                      </span>{' '}
+                      contacts using the{' '}
+                      <span className="font-medium text-white">{template.name}</span> template.
+                    </>
+                  ) : (
+                    <>
+                      You are about to send this broadcast immediately to{' '}
+                      <span className="font-medium text-white">
+                        {estimatedReach.toLocaleString()}
+                      </span>{' '}
+                      contacts using the{' '}
+                      <span className="font-medium text-white">{template.name}</span> template.
+                      This action cannot be undone.
+                    </>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowConfirm(false)}
+                  className="border-slate-700 text-slate-300"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmAction}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  {scheduleMode === 'later' ? (
+                    <>
+                      <Calendar className="h-4 w-4 mr-1.5" />
+                      Confirm Schedule
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-1.5" />
+                      Confirm & Send
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </div>

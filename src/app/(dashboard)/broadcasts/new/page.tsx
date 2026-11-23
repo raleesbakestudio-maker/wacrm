@@ -41,7 +41,7 @@ export default function NewBroadcastPage() {
   >({});
   const [name, setName] = useState('');
 
-  async function handleSend() {
+  async function handleSend(scheduledAt?: string | null) {
     if (!template) return;
 
     try {
@@ -56,11 +56,17 @@ export default function NewBroadcastPage() {
           excludeTagIds: audience.excludeTagIds,
         },
         variables,
+        scheduled_at: scheduledAt || null,
       });
+
+      if (scheduledAt) {
+        toast.success(`Broadcast scheduled for ${new Date(scheduledAt).toLocaleString()}!`);
+      } else {
+        toast.success('Broadcast started successfully!');
+      }
+
       router.push(`/broadcasts/${broadcastId}`);
     } catch (err) {
-      // Previously swallowed with console.error — the wizard would
-      // just no-op, leaving the user confused. Surface the reason.
       const message = err instanceof Error ? err.message : 'Broadcast failed';
       console.error('Broadcast failed:', err);
       toast.error(message);
@@ -215,6 +221,7 @@ export default function NewBroadcastPage() {
               onNameChange={setName}
               template={template}
               audience={audience}
+              variables={variables}
               onSend={handleSend}
               onSaveDraft={handleSaveDraft}
               onBack={() => setCurrentStep(2)}

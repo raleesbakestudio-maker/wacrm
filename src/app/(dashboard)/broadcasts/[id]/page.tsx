@@ -32,12 +32,14 @@ import {
   Download,
   ChevronDown,
   Trash2,
+  Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   getBroadcastStatus,
   getRecipientStatus,
 } from '@/lib/broadcast-status';
+import { useBroadcastSending } from '@/hooks/use-broadcast-sending';
 
 interface StatCardProps {
   label: string;
@@ -155,36 +157,37 @@ export default function BroadcastDetailPage() {
   );
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const { sendScheduledBroadcastNow, isProcessing: isSendingScheduled, progress: scheduleProgress } = useBroadcastSending();
+
+  async function fetchData() {
+    try {
+      const supabase = createClient();
+
+      const { data: bc, error: bcError } = await supabase
+        .from('broadcasts')
+        .select('*')
+        .eq('id', broadcastId)
+        .single();
+
+      if (bcError) throw bcError;
+      setBroadcast(bc);
+
+      const { data: recs, error: recsError } = await supabase
+        .from('broadcast_recipients')
+        .select('*, contact:contacts(*)')
+        .eq('broadcast_id', broadcastId)
+        .order('created_at', { ascending: false });
+
+      if (recsError) throw recsError;
+      setRecipients(recs ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load broadcast');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const supabase = createClient();
-
-        const { data: bc, error: bcError } = await supabase
-          .from('broadcasts')
-          .select('*')
-          .eq('id', broadcastId)
-          .single();
-
-        if (bcError) throw bcError;
-        setBroadcast(bc);
-
-        const { data: recs, error: recsError } = await supabase
-          .from('broadcast_recipients')
-          .select('*, contact:contacts(*)')
-          .eq('broadcast_id', broadcastId)
-          .order('created_at', { ascending: false });
-
-        if (recsError) throw recsError;
-        setRecipients(recs ?? []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load broadcast');
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchData();
   }, [broadcastId]);
 
@@ -346,6 +349,50 @@ export default function BroadcastDetailPage() {
           </Button>
         )}
       </div>
+
+      {/* Scheduled Broadcast Banner & Send Now Option */}
+      {broadcast.status === 'scheduled' && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-blue-500/30 bg-blue-500/10 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400">
+              <Calendar className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white">
+                Scheduled Broadcast (ഷെഡ്യൂൾ ചെയ്ത ബ്രോഡ്കാസ്റ്റ്)
+              </p>
+              <p className="text-xs text-blue-300">
+                {broadcast.scheduled_at
+                  ? `ഈ മെസ്സേജ് ${new Date(broadcast.scheduled_at).toLocaleString()}-ൽ അയക്കാൻ ഷെഡ്യൂൾ ചെയ്തിരിക്കുന്നു.`
+                  : 'ഈ ബ്രോഡ്കാസ്റ്റ് ഷെഡ്യൂൾ ചെയ്തിരിക്കുന്നു.'}
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={async () => {
+              try {
+                await sendScheduledBroadcastNow(broadcast.id);
+                toast.success('Broadcast sent successfully!');
+                await fetchData();
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : 'Failed to send broadcast');
+              }
+            }}
+            disabled={isSendingScheduled}
+            className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            {isSendingScheduled ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> Sending… ({scheduleProgress}%)
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-1.5" /> Send Now (ഇപ്പോൾ അയക്കുക)
+              </>
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* Stats — 6 cards: Total / Sent / Delivered / Read / Replied / Failed */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
