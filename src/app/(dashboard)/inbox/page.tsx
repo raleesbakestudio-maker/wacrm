@@ -579,7 +579,7 @@ export default function InboxPage() {
             thread can occupy the full width. Always visible on lg+. */}
         <div
           className={cn(
-            "flex h-full flex-1 lg:flex-none",
+            "flex h-full flex-1 min-w-0 w-full lg:w-80 lg:flex-none",
             hasActiveConv ? "hidden lg:flex" : "flex",
           )}
         >

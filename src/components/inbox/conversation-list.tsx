@@ -15,7 +15,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -223,7 +222,7 @@ export function ConversationList({
     // w-full on mobile so the list occupies the whole viewport when it's
     // the single pane showing; fixed 320px on desktop where it shares the
     // row with the thread + contact sidebar.
-    <div className="flex h-full w-full flex-col border-r border-slate-800 bg-slate-900 lg:w-80">
+    <div className="flex h-full w-full min-w-0 flex-col border-r border-slate-800 bg-slate-900 lg:w-80">
       {/* Search + Filter */}
       <div className="space-y-2 border-b border-slate-800 p-2.5 sm:p-3">
         <div className="relative">
@@ -408,7 +407,7 @@ export function ConversationList({
       </div>
 
       {/* Conversation Items */}
-      <ScrollArea className="flex-1 w-full min-w-0 overflow-x-hidden">
+      <div className="flex-1 w-full min-w-0 overflow-y-auto overflow-x-hidden divide-y divide-slate-100 dark:divide-slate-800/40 overscroll-contain">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -418,18 +417,16 @@ export function ConversationList({
             <p className="text-sm text-slate-500">No conversations found</p>
           </div>
         ) : (
-          <div className="flex flex-col w-full min-w-0 max-w-full overflow-x-hidden divide-y divide-slate-100 dark:divide-slate-800/40">
-            {filtered.map((conv) => (
-              <ConversationItem
-                key={conv.id}
-                conversation={conv}
-                isActive={conv.id === activeConversationId}
-                onSelect={handleSelect}
-              />
-            ))}
-          </div>
+          filtered.map((conv) => (
+            <ConversationItem
+              key={conv.id}
+              conversation={conv}
+              isActive={conv.id === activeConversationId}
+              onSelect={handleSelect}
+            />
+          ))
         )}
-      </ScrollArea>
+      </div>
     </div>
   );
 }
@@ -477,7 +474,7 @@ function ConversationItem({
         }
       }}
       className={cn(
-        "flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors cursor-pointer select-none",
+        "flex w-full min-w-0 items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer select-none",
         "hover:bg-slate-100 dark:hover:bg-slate-800/60",
         isActive && "border-l-4 border-primary bg-slate-100/90 dark:bg-slate-800/80"
       )}
@@ -496,16 +493,16 @@ function ConversationItem({
       </div>
 
       {/* Content */}
-      <div className="flex flex-1 flex-col justify-center min-w-0 w-full overflow-hidden">
+      <div className="flex flex-1 flex-col justify-center min-w-0">
         {/* Row 1: Name + WhatsApp Time */}
-        <div className="flex items-center justify-between gap-2 w-full min-w-0">
-          <span className="truncate text-[15px] font-semibold text-slate-900 dark:text-white flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <span className="truncate text-sm sm:text-[15px] font-semibold text-slate-900 dark:text-white min-w-0 flex-1">
             {displayName}
           </span>
           {formattedTime ? (
             <span
               className={cn(
-                "shrink-0 ml-2 text-[11px] sm:text-xs font-medium whitespace-nowrap text-right",
+                "shrink-0 text-[11px] sm:text-xs font-medium whitespace-nowrap text-right",
                 hasUnread
                   ? "font-bold text-emerald-600 dark:text-emerald-400"
                   : "text-slate-500 dark:text-slate-400"
@@ -517,13 +514,13 @@ function ConversationItem({
         </div>
 
         {/* Row 2: Last message snippet + Unread badge + Status indicator */}
-        <div className="mt-0.5 flex items-center justify-between gap-2 w-full min-w-0">
-          <p className="truncate text-xs text-slate-500 dark:text-slate-400 flex-1 min-w-0">
+        <div className="mt-0.5 flex items-center justify-between gap-2 min-w-0">
+          <p className="truncate text-xs text-slate-500 dark:text-slate-400 min-w-0 flex-1">
             {conversation.last_message_text || "No messages yet"}
           </p>
-          <div className="flex shrink-0 items-center gap-1.5 ml-2">
+          <div className="flex shrink-0 items-center gap-1.5 ml-1.5">
             {hasUnread && (
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 text-[11px] font-bold text-white px-1.5 shadow-xs">
+              <span className="inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white px-1 shadow-xs">
                 {unreadCount}
               </span>
             )}
@@ -539,7 +536,7 @@ function ConversationItem({
 
         {/* Row 3: Tags preview */}
         {tags.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-1 w-full min-w-0">
+          <div className="mt-1 flex flex-wrap items-center gap-1 min-w-0">
             {tags.slice(0, 3).map((t) => (
               <span
                 key={t.id}
