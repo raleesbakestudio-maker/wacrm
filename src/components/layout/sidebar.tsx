@@ -104,23 +104,10 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-// Same flag key the Members tab and Settings page use. Flip per
-// profile via Supabase Studio to dogfood the multi-user surface.
-const ACCOUNT_SHARING_FLAG = "account_sharing";
-
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { profile, profileLoading, account, accountRole, signOut } = useAuth();
+  const { profile, account, accountRole, signOut } = useAuth();
   const totalUnread = useTotalUnread();
-  // Match the settings page's check: only treat the flag as enabled
-  // once the profile has finished loading. Without this, the strip
-  // would briefly flash absent during the initial profile fetch
-  // (when `profile` is null and the boolean coerces to false), then
-  // pop in once the row resolves — visible as a layout jump in the
-  // sidebar footer.
-  const accountSharingEnabled =
-    !profileLoading &&
-    !!profile?.beta_features?.includes(ACCOUNT_SHARING_FLAG);
 
   // Close the drawer when route changes — users opened it to navigate,
   // so once they pick a destination the drawer should get out of the way.
@@ -270,13 +257,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
         {/* User section */}
         <div className="shrink-0 border-t border-slate-800 p-3">
-          {/* Account name display — only surfaced when the user is
-              opted into the account_sharing beta flag. For solo
-              users (the default) the account is named after them,
-              so showing it here would just duplicate the user name
-              below. Once the flag is on the user is at minimum
-              aware of which shared account they're acting in. */}
-          {accountSharingEnabled && account?.name ? (
+          {/* Account name & role display */}
+          {account?.name ? (
             <div className="mb-2 flex items-center gap-2 px-3 text-xs text-slate-500">
               <UsersRound className="size-3.5 shrink-0" />
               {/* `title=` exposes the full name on hover when it
@@ -346,6 +328,18 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               >
                 <User className="size-4" />
                 Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                render={
+                  <Link
+                    href="/settings?tab=members"
+                    onClick={onClose}
+                    className="text-slate-200 focus:bg-slate-800 focus:text-white"
+                  />
+                }
+              >
+                <UsersRound className="size-4" />
+                Team & Staff
               </DropdownMenuItem>
               <DropdownMenuItem
                 render={
