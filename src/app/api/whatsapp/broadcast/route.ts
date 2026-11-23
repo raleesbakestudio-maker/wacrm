@@ -71,15 +71,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Per-user broadcast budget. Note: this limits how often a user
-    // can *start* a campaign, not how many messages go out inside
-    // one — the fan-out loop below runs without additional gating.
-    const limit = checkRateLimit(`broadcast:${user.id}`, RATE_LIMITS.broadcast)
+    const body = await request.json()
+
+    // Per-user broadcast budget. For campaign batch calls (carrying is_batch),
+    // allow a much higher throughput limit (600 batches/min) so multi-batch
+    // campaigns aren't throttled mid-send, while single campaign start calls
+    // stay within RATE_LIMITS.broadcast.
+    const rateLimitConfig = body.is_batch
+      ? { limit: 600, windowMs: 60_000 }
+      : RATE_LIMITS.broadcast
+    const limit = checkRateLimit(`broadcast:${user.id}`, rateLimitConfig)
     if (!limit.success) {
       return rateLimitResponse(limit)
     }
 
-    const body = await request.json()
     const {
       recipients: newRecipients,
       phone_numbers,

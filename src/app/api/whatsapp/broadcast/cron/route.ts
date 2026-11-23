@@ -17,6 +17,8 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   return handleCron();
 }
@@ -28,12 +30,13 @@ export async function POST(request: Request) {
 async function handleCron() {
   const admin = supabaseAdmin();
   const now = new Date().toISOString();
+  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
-  // Find due scheduled broadcasts
+  // Find due scheduled broadcasts, or broadcasts stalled in 'sending' for > 5 minutes
   const { data: dueBroadcasts, error } = await admin
     .from('broadcasts')
     .select('*')
-    .eq('status', 'scheduled')
+    .or(`status.eq.scheduled,and(status.eq.sending,updated_at.lte.${fiveMinAgo})`)
     .lte('scheduled_at', now)
     .order('scheduled_at', { ascending: true })
     .limit(5);
@@ -54,7 +57,7 @@ async function handleCron() {
       .from('broadcasts')
       .update({ status: 'sending', updated_at: now })
       .eq('id', broadcast.id)
-      .eq('status', 'scheduled')
+      .in('status', ['scheduled', 'sending'])
       .select('id')
       .maybeSingle();
 

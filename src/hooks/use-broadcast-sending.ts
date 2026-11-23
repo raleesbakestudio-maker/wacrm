@@ -519,6 +519,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
               recipients: apiRecipients,
               template_name: payload.template.name,
               template_language: payload.template.language ?? 'en_US',
+              is_batch: true,
             }),
           });
 
@@ -713,10 +714,27 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
 
       const typedRecipients = recipients as unknown as (Record<string, unknown> & {
         id: string;
+        status?: string;
         contact?: Contact | null;
       })[];
 
-      const contactIds = typedRecipients
+      // Filter out recipients who already received the message so they are NEVER sent duplicate messages
+      const pendingRecipients = typedRecipients.filter(
+        (r) => !['sent', 'delivered', 'read'].includes(r.status as string)
+      );
+
+      if (pendingRecipients.length === 0) {
+        // All recipients were already sent!
+        await supabase
+          .from('broadcasts')
+          .update({ status: 'sent', updated_at: new Date().toISOString() })
+          .eq('id', broadcastId);
+        setProgress(100);
+        setIsProcessing(false);
+        return;
+      }
+
+      const contactIds = pendingRecipients
         .map((r) => r.contact?.id)
         .filter((id): id is string => Boolean(id));
       const customValueIndex = await fetchCustomValueIndex(supabase, contactIds);
@@ -754,10 +772,10 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       }
 
       let failedCount = 0;
-      const totalRecipients = typedRecipients.length;
+      const totalRecipients = pendingRecipients.length;
 
-      for (let i = 0; i < typedRecipients.length; i += SEND_BATCH_SIZE) {
-        const batch = typedRecipients.slice(i, i + SEND_BATCH_SIZE);
+      for (let i = 0; i < pendingRecipients.length; i += SEND_BATCH_SIZE) {
+        const batch = pendingRecipients.slice(i, i + SEND_BATCH_SIZE);
 
         const apiRecipients = batch
           .filter((r) => r.contact?.phone)
@@ -782,6 +800,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
               recipients: apiRecipients,
               template_name: broadcast.template_name,
               template_language: broadcast.template_language ?? 'en_US',
+              is_batch: true,
             }),
           });
 
