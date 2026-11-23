@@ -681,6 +681,7 @@ const ADD_NODE_TYPES: NodeType[] = [
   "condition",
   "set_tag",
   "handoff",
+  "trigger_flow",
   "end",
 ];
 

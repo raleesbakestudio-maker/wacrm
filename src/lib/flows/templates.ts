@@ -39,6 +39,7 @@ export type FlowTemplateNodeType =
   | "condition"
   | "set_tag"
   | "handoff"
+  | "trigger_flow"
   | "end";
 
 export interface FlowTemplateNode {

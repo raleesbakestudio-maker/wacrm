@@ -527,6 +527,7 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
     "condition",
     "set_tag",
     "handoff",
+    "trigger_flow",
     "end",
   ];
   return (

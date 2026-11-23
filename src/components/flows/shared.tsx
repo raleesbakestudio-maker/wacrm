@@ -17,6 +17,7 @@
  */
 
 import {
+  ArrowRightCircle,
   Flag,
   GitFork,
   Inbox,
@@ -48,6 +49,7 @@ export type NodeType =
   | "condition"
   | "set_tag"
   | "handoff"
+  | "trigger_flow"
   | "end";
 
 export interface BuilderNode {
@@ -109,6 +111,11 @@ export const NODE_META: Record<
     label: "Handoff to agent",
     icon: UserPlus,
     color: "text-amber-400",
+  },
+  trigger_flow: {
+    label: "Jump to Flow",
+    icon: ArrowRightCircle,
+    color: "text-purple-400",
   },
   end: { label: "End", icon: Flag, color: "text-slate-400" },
 };
@@ -250,6 +257,13 @@ export function summarizeNode(node: BuilderNode): string | null {
     case "handoff": {
       const note = typeof cfg.note === "string" ? cfg.note : "";
       return note.length > 0 ? truncate(note) : null;
+    }
+    case "trigger_flow": {
+      const targetName =
+        typeof cfg.target_flow_name === "string" ? cfg.target_flow_name : "";
+      return targetName
+        ? `➡️ Jump to: ${truncate(targetName, 40)}`
+        : "Pick target flow…";
     }
   }
 }

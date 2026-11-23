@@ -701,6 +701,20 @@ function validateNode(
       break;
     }
 
+    case "trigger_flow": {
+      const cfg = node.config as unknown as { target_flow_id?: string };
+      if (!cfg?.target_flow_id || !cfg.target_flow_id.trim()) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "target_flow_id",
+          message: "Please select a target flow to jump to.",
+        });
+      }
+      break;
+    }
+
     case "handoff":
     case "end":
       // Terminal nodes have no outgoing edges; nothing to validate
@@ -785,6 +799,7 @@ function outgoingEdges(node: NodeInput): string[] {
       }
       return out;
     }
+    case "trigger_flow":
     case "handoff":
     case "end":
     default:

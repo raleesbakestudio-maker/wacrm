@@ -198,6 +198,14 @@ export function NodeConfigForm({
         />
       );
 
+    case "trigger_flow":
+      return (
+        <TriggerFlowForm
+          cfg={cfg as TriggerFlowCfg}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
     case "end":
       return (
         <p className="text-xs text-slate-500">
@@ -1086,5 +1094,124 @@ function SendMediaForm({
         label="After sending, advance to"
       />
     </>
+  );
+}
+
+// ============================================================
+// trigger_flow
+// ============================================================
+
+interface FlowOption {
+  id: string;
+  name: string;
+  status: string;
+}
+
+interface TriggerFlowCfg {
+  target_flow_id?: string;
+  target_flow_name?: string;
+}
+
+function useFlowList(): { flows: FlowOption[]; loading: boolean } {
+  const [flows, setFlows] = useState<FlowOption[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/flows").catch(() => null);
+        if (!res || !res.ok) {
+          if (!cancelled) setLoading(false);
+          return;
+        }
+        const json = (await res.json()) as { flows?: FlowOption[] };
+        if (!cancelled) {
+          setFlows(json.flows ?? []);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { flows, loading };
+}
+
+function TriggerFlowForm({
+  cfg,
+  onUpdateConfig,
+}: {
+  cfg: TriggerFlowCfg;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const { flows, loading } = useFlowList();
+  const availableFlows = flows.filter((f) => f.status !== "archived");
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="mb-1 block text-xs font-medium text-slate-300">
+          Target Flow (Select flow to jump to)
+        </label>
+        {loading ? (
+          <div className="flex h-9 items-center gap-2 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs text-slate-400">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <span>Loading flows…</span>
+          </div>
+        ) : availableFlows.length > 0 ? (
+          <Select
+            value={cfg.target_flow_id ?? ""}
+            onValueChange={(flowId) => {
+              const matched = availableFlows.find((f) => f.id === flowId);
+              onUpdateConfig({
+                target_flow_id: flowId,
+                target_flow_name: matched ? matched.name : "",
+              });
+            }}
+          >
+            <SelectTrigger className="bg-slate-800">
+              <SelectValue placeholder="Pick a target flow…" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableFlows.map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-slate-200">{f.name}</span>
+                    {f.status === "active" ? (
+                      <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400">
+                        Active
+                      </span>
+                    ) : (
+                      <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-400">
+                        Draft
+                      </span>
+                    )}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            value={cfg.target_flow_id ?? ""}
+            onChange={(e) =>
+              onUpdateConfig({
+                target_flow_id: e.target.value,
+              })
+            }
+            placeholder="Target Flow ID (UUID)"
+            className="bg-slate-800 font-mono text-xs"
+          />
+        )}
+        <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
+          When this node is reached (e.g. after customer clicks a button wired to this node), the current flow completes and seamlessly launches the selected target flow.
+        </p>
+      </div>
+    </div>
   );
 }

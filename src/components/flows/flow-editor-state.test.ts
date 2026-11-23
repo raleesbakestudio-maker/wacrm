@@ -48,6 +48,7 @@ describe("defaultConfigFor", () => {
     "condition",
     "set_tag",
     "handoff",
+    "trigger_flow",
     "end",
   ];
 
@@ -87,5 +88,12 @@ describe("defaultConfigFor", () => {
 
   it("end's default is an empty object (terminal — no config)", () => {
     expect(defaultConfigFor("end")).toEqual({});
+  });
+
+  it("trigger_flow default has target_flow_id and target_flow_name", () => {
+    expect(defaultConfigFor("trigger_flow")).toEqual({
+      target_flow_id: "",
+      target_flow_name: "",
+    });
   });
 });

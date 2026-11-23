@@ -173,6 +173,13 @@ export interface SetTagNodeConfig {
   next_node_key: string;
 }
 
+export interface TriggerFlowNodeConfig {
+  /** Target flow id to transition this contact and conversation to. */
+  target_flow_id: string;
+  /** Optional cached name of the target flow for canvas display. */
+  target_flow_name?: string;
+}
+
 // Terminal nodes carry no config — they just stop the run.
 export type EndNodeConfig = Record<string, never>;
 
@@ -194,6 +201,7 @@ export type FlowNodeConfig =
   | { node_type: "condition"; config: ConditionNodeConfig }
   | { node_type: "set_tag"; config: SetTagNodeConfig }
   | { node_type: "handoff"; config: HandoffNodeConfig }
+  | { node_type: "trigger_flow"; config: TriggerFlowNodeConfig }
   | { node_type: "end"; config: EndNodeConfig };
 
 export type FlowNodeType = FlowNodeConfig["node_type"];

@@ -131,7 +131,11 @@ export function isSuspending(node_type: string): boolean {
 
 /** Nodes that end the run. */
 export function isTerminal(node_type: string): boolean {
-  return node_type === "handoff" || node_type === "end";
+  return (
+    node_type === "handoff" ||
+    node_type === "trigger_flow" ||
+    node_type === "end"
+  );
 }
 
 /**
@@ -777,6 +781,39 @@ async function advanceFromNodeKey(
     if (node.node_type === "handoff") {
       await executeHandoff(db, run, node);
       return { outcome: "handed_off" };
+    }
+    if (node.node_type === "trigger_flow") {
+      const cfg = node.config as unknown as { target_flow_id?: string };
+      if (!cfg?.target_flow_id) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "missing_target_flow_id",
+        });
+        await endRun(db, run.id, "failed", "missing_target_flow_id");
+        return { outcome: "completed" };
+      }
+
+      await logEvent(db, run.id, "completed", node.node_key, {
+        reason: "jumped_to_flow",
+        target_flow_id: cfg.target_flow_id,
+      });
+      await endRun(
+        db,
+        run.id,
+        "completed",
+        `jumped_to_flow:${cfg.target_flow_id}`
+      );
+
+      // Trigger the destination flow for this contact and conversation
+      if (run.conversation_id && run.contact_id) {
+        await startFlowForConversation({
+          flowId: cfg.target_flow_id,
+          conversationId: run.conversation_id,
+          contactId: run.contact_id,
+          accountId: run.account_id,
+          userId: run.user_id,
+        });
+      }
+      return { outcome: "completed" };
     }
     if (node.node_type === "end") {
       await logEvent(db, run.id, "completed", node.node_key);

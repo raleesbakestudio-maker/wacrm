@@ -169,8 +169,9 @@ describe("node classification helpers", () => {
     expect(isSuspending("end")).toBe(false);
   });
 
-  it("isTerminal covers handoff + end", () => {
+  it("isTerminal covers handoff + trigger_flow + end", () => {
     expect(isTerminal("handoff")).toBe(true);
+    expect(isTerminal("trigger_flow")).toBe(true);
     expect(isTerminal("end")).toBe(true);
     expect(isTerminal("start")).toBe(false);
     expect(isTerminal("send_buttons")).toBe(false);
@@ -188,6 +189,7 @@ describe("node classification helpers", () => {
       "condition",
       "set_tag",
       "handoff",
+      "trigger_flow",
       "end",
     ];
     for (const t of types) {
