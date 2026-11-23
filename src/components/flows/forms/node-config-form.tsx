@@ -49,7 +49,7 @@ import {
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { slugify, type BuilderNode } from "../shared";
-import { NextNodeRow, NodeKeySelect, TextRow } from "./fields";
+import { DelayConfigRow, NextNodeRow, NodeKeySelect, TextRow } from "./fields";
 
 interface NodeConfigFormProps {
   node: BuilderNode;
@@ -217,6 +217,8 @@ export function NodeConfigForm({
 interface SendMessageCfg {
   text?: string;
   next_node_key?: string;
+  delay_value?: number;
+  delay_unit?: "seconds" | "minutes" | "hours";
 }
 
 function renderWhatsAppPreview(rawText: string) {
@@ -508,7 +510,14 @@ function SendMessageForm({
         </div>
       </div>
 
-      {/* 4. Next Node */}
+      {/* 4. Delay Before Sending */}
+      <DelayConfigRow
+        delayValue={cfg.delay_value}
+        delayUnit={cfg.delay_unit}
+        onChange={(patch) => onUpdateConfig(patch)}
+      />
+
+      {/* 5. Next Node */}
       <NextNodeRow
         value={cfg.next_node_key ?? ""}
         allNodes={allNodes}
@@ -528,6 +537,8 @@ interface SendButtonsCfg {
   text?: string;
   footer_text?: string;
   buttons?: Array<{ reply_id: string; title: string; next_node_key: string }>;
+  delay_value?: number;
+  delay_unit?: "seconds" | "minutes" | "hours";
 }
 
 function SendButtonsForm({
@@ -578,6 +589,11 @@ function SendButtonsForm({
         label="Footer (optional, 60 chars)"
         value={cfg.footer_text ?? ""}
         onChange={(v) => onUpdateConfig({ footer_text: v })}
+      />
+      <DelayConfigRow
+        delayValue={cfg.delay_value}
+        delayUnit={cfg.delay_unit}
+        onChange={(patch) => onUpdateConfig(patch)}
       />
       <div>
         <div className="mb-2 flex items-center justify-between">
@@ -666,6 +682,8 @@ interface SendListCfg {
       next_node_key: string;
     }>;
   }>;
+  delay_value?: number;
+  delay_unit?: "seconds" | "minutes" | "hours";
 }
 
 function SendListForm({
@@ -775,6 +793,12 @@ function SendListForm({
           onChange={(v) => onUpdateConfig({ footer_text: v })}
         />
       </div>
+
+      <DelayConfigRow
+        delayValue={cfg.delay_value}
+        delayUnit={cfg.delay_unit}
+        onChange={(patch) => onUpdateConfig(patch)}
+      />
 
       <div className="mt-2">
         <label className="mb-2 block text-xs text-slate-400">
@@ -1170,6 +1194,8 @@ interface SendMediaCfg {
   caption?: string;
   filename?: string;
   next_node_key?: string;
+  delay_value?: number;
+  delay_unit?: "seconds" | "minutes" | "hours";
 }
 
 // Mirrors the bucket's allowed_mime_types from migration 016 + 022. Kept in
@@ -1402,6 +1428,12 @@ function SendMediaForm({
           />
         </div>
       )}
+
+      <DelayConfigRow
+        delayValue={cfg.delay_value}
+        delayUnit={cfg.delay_unit}
+        onChange={(patch) => onUpdateConfig(patch)}
+      />
 
       <NextNodeRow
         value={cfg.next_node_key ?? ""}

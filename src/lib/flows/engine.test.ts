@@ -8,6 +8,7 @@ import {
   evaluateConditionPredicate,
   interpolateVars,
 } from "./engine";
+import { getNodeDelaySeconds } from "./types";
 
 describe("matchReplyId", () => {
   it("returns null for nodes without options", () => {
@@ -338,5 +339,32 @@ describe("interpolateVars", () => {
 
   it("returns empty string for empty template", () => {
     expect(interpolateVars("", { name: "Test" })).toBe("");
+  });
+});
+
+describe("getNodeDelaySeconds", () => {
+  it("returns 0 when delay_value is missing or 0", () => {
+    expect(getNodeDelaySeconds({})).toBe(0);
+    expect(getNodeDelaySeconds({ delay_value: 0 })).toBe(0);
+    expect(getNodeDelaySeconds(null)).toBe(0);
+  });
+
+  it("calculates seconds correctly", () => {
+    expect(getNodeDelaySeconds({ delay_value: 5, delay_unit: "seconds" })).toBe(
+      5,
+    );
+    expect(getNodeDelaySeconds({ delay_value: 10 })).toBe(10);
+  });
+
+  it("calculates minutes correctly", () => {
+    expect(getNodeDelaySeconds({ delay_value: 2, delay_unit: "minutes" })).toBe(
+      120,
+    );
+  });
+
+  it("calculates hours correctly", () => {
+    expect(getNodeDelaySeconds({ delay_value: 1, delay_unit: "hours" })).toBe(
+      3600,
+    );
   });
 });

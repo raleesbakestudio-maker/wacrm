@@ -56,6 +56,7 @@ import {
   type SetTagNodeConfig,
   type StartNodeConfig,
   type KeywordTriggerConfig,
+  getNodeDelaySeconds,
 } from "./types";
 
 // ============================================================
@@ -633,6 +634,23 @@ async function advanceFromNodeKey(
       currentKey = (node.config as unknown as StartNodeConfig).next_node_key;
       continue;
     }
+
+    // Delay before sending payload if configured on this node (up to 15s synchronous)
+    if (
+      node.node_type === "send_message" ||
+      node.node_type === "send_media" ||
+      node.node_type === "send_buttons" ||
+      node.node_type === "send_list"
+    ) {
+      const delaySec = getNodeDelaySeconds(
+        node.config as Record<string, unknown>,
+      );
+      if (delaySec > 0) {
+        const sleepSec = Math.min(delaySec, 15);
+        await new Promise((resolve) => setTimeout(resolve, sleepSec * 1000));
+      }
+    }
+
     if (node.node_type === "send_message") {
       const cfg = node.config as unknown as SendMessageNodeConfig;
       try {

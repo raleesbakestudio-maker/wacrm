@@ -18,6 +18,7 @@
  * (introduced in this PR) mount the exact same form components.
  */
 
+import { Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -85,6 +86,82 @@ export function NextNodeRow({
         onChange={(v) => onChange(v ?? "")}
         placeholder="Pick a next node…"
       />
+    </div>
+  );
+}
+
+export function DelayConfigRow({
+  delayValue = 0,
+  delayUnit = "seconds",
+  onChange,
+}: {
+  delayValue?: number;
+  delayUnit?: "seconds" | "minutes" | "hours";
+  onChange: (patch: {
+    delay_value: number;
+    delay_unit: "seconds" | "minutes" | "hours";
+  }) => void;
+}) {
+  const numVal =
+    typeof delayValue === "number" ? delayValue : Number(delayValue) || 0;
+  const unit = delayUnit || "seconds";
+
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
+          <Clock className="h-3.5 w-3.5 text-amber-400" />
+          <span>Delay before sending</span>
+        </label>
+        <span className="text-[10px] text-slate-500">
+          {numVal > 0 ? `${numVal} ${unit}` : "Instant (0s)"}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Input
+            type="number"
+            min={0}
+            max={unit === "hours" ? 72 : unit === "minutes" ? 1440 : 60}
+            value={numVal === 0 ? "" : numVal}
+            onChange={(e) => {
+              const parsed = Math.max(0, parseInt(e.target.value, 10) || 0);
+              onChange({ delay_value: parsed, delay_unit: unit });
+            }}
+            placeholder="0 (no delay)"
+            className="bg-slate-800 text-xs"
+          />
+        </div>
+        <div>
+          <Select
+            value={unit}
+            onValueChange={(v) =>
+              onChange({
+                delay_value: numVal,
+                delay_unit: v as "seconds" | "minutes" | "hours",
+              })
+            }
+          >
+            <SelectTrigger className="bg-slate-800 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="seconds">Seconds (സെക്കൻഡ്)</SelectItem>
+              <SelectItem value="minutes">Minutes (മിനിറ്റ്)</SelectItem>
+              <SelectItem value="hours">Hours (മണിക്കൂർ)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <p className="mt-1.5 text-[10px] text-slate-400">
+        {numVal === 0
+          ? "Sends immediately without waiting."
+          : unit === "seconds"
+            ? `Waits ${numVal}s before sending (feels like real typing).`
+            : `Waits ${numVal} ${unit} before sending this message.`}
+      </p>
     </div>
   );
 }

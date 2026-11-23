@@ -155,6 +155,25 @@ function FlowNodeCard({ data, selected }: NodeProps) {
             Entry
           </span>
         )}
+        {Boolean(
+          (node.config as { delay_value?: number })?.delay_value,
+        ) && (
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-medium text-amber-300",
+              !isEntry && "ml-auto",
+            )}
+            title={`Delay: ${(node.config as { delay_value?: number })?.delay_value} ${(node.config as { delay_unit?: string })?.delay_unit || "seconds"}`}
+          >
+            <span>⏱️</span>
+            <span>
+              {(node.config as { delay_value?: number })?.delay_value}
+              {(
+                (node.config as { delay_unit?: string })?.delay_unit || "s"
+              ).charAt(0)}
+            </span>
+          </span>
+        )}
       </div>
       <div className="mt-1 truncate font-mono text-[11px] text-slate-300">
         {node.node_key}

@@ -27,14 +27,38 @@ export interface StartNodeConfig {
   next_node_key: string;
 }
 
-export interface SendMessageNodeConfig {
+export type DelayUnit = "seconds" | "minutes" | "hours";
+
+export interface NodeDelayConfig {
+  /** Optional delay value before executing this node. */
+  delay_value?: number;
+  /** Unit of delay ('seconds' | 'minutes' | 'hours'). Defaults to 'seconds'. */
+  delay_unit?: DelayUnit;
+}
+
+export function getNodeDelaySeconds(
+  config: Record<string, unknown> | null | undefined,
+): number {
+  if (!config) return 0;
+  const val =
+    typeof config.delay_value === "number"
+      ? config.delay_value
+      : Number(config.delay_value) || 0;
+  if (val <= 0) return 0;
+  const unit = (config.delay_unit as string) || "seconds";
+  if (unit === "hours") return val * 3600;
+  if (unit === "minutes") return val * 60;
+  return val;
+}
+
+export interface SendMessageNodeConfig extends NodeDelayConfig {
   /** Plain text sent to the customer; can interpolate {{vars.X}}. */
   text: string;
   /** Auto-advance target after the message lands at Meta. */
   next_node_key: string;
 }
 
-export interface SendButtonsNodeConfig {
+export interface SendButtonsNodeConfig extends NodeDelayConfig {
   text: string;
   /** Optional header / footer lines around the buttons. */
   header_text?: string;
@@ -50,7 +74,7 @@ export interface SendButtonsNodeConfig {
   }>;
 }
 
-export interface SendListNodeConfig {
+export interface SendListNodeConfig extends NodeDelayConfig {
   text: string;
   /** Label of the tap-to-expand button on the message bubble. */
   button_label: string;
@@ -81,7 +105,7 @@ export interface SendListNodeConfig {
  * the builder forms, engine cases, and add-menu entries for no
  * meaningful behavioural difference.
  */
-export interface SendMediaNodeConfig {
+export interface SendMediaNodeConfig extends NodeDelayConfig {
   media_type: "image" | "video" | "document" | "audio";
   /** Public URL Meta will fetch. Uploaded via the builder's file picker. */
   media_url: string;
