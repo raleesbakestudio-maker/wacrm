@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { Conversation, Message, Contact, ConversationStatus } from "@/types";
+import type { Conversation, Message, Contact, ConversationStatus, Tag } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
@@ -100,6 +100,17 @@ export default function InboxPage() {
       }
       if (!data) return;
       const fetched = data as Conversation;
+      if (fetched.contact?.id) {
+        const { data: ctRows } = await supabase
+          .from("contact_tags")
+          .select("tag_id, tags(*)")
+          .eq("contact_id", fetched.contact.id);
+        if (ctRows) {
+          fetched.contact.tags = ctRows
+            .filter((r: Record<string, unknown>) => r.tags)
+            .map((r: Record<string, unknown>) => r.tags as Tag);
+        }
+      }
       setConversations((prev) => {
         const existing = prev.find((c) => c.id === fetched.id);
         if (existing) {

@@ -96,6 +96,7 @@ export interface Contact {
   avatar_url?: string;
   created_at: string;
   updated_at: string;
+  tags?: Tag[];
 }
 
 export interface Tag {

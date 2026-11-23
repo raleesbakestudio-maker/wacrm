@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import type { Conversation, ConversationStatus } from "@/types";
+import type { Conversation, ConversationStatus, Tag } from "@/types";
 import { Search, ChevronDown } from "lucide-react";
 import { formatWhatsAppListTimestamp } from "@/lib/whatsapp/date-format";
 import { Input } from "@/components/ui/input";
@@ -95,8 +95,40 @@ export function ConversationList({
         return;
       }
 
-      onConversationsLoadedRef.current(data ?? []);
-      setLoading(false);
+      const convs = (data ?? []) as Conversation[];
+      const contactIds = Array.from(
+        new Set(convs.map((c) => c.contact_id).filter(Boolean))
+      );
+
+      if (contactIds.length > 0) {
+        const { data: ctRows } = await supabase
+          .from("contact_tags")
+          .select("contact_id, tag_id, tags(*)")
+          .in("contact_id", contactIds);
+
+        if (!cancelled && ctRows) {
+          const tagsByContact: Record<string, Tag[]> = {};
+          ctRows.forEach((row: Record<string, unknown>) => {
+            const cid = row.contact_id as string;
+            const t = row.tags as Tag | null;
+            if (cid && t) {
+              if (!tagsByContact[cid]) tagsByContact[cid] = [];
+              tagsByContact[cid].push(t);
+            }
+          });
+
+          convs.forEach((c) => {
+            if (c.contact && tagsByContact[c.contact_id]) {
+              c.contact.tags = tagsByContact[c.contact_id];
+            }
+          });
+        }
+      }
+
+      if (!cancelled) {
+        onConversationsLoadedRef.current(convs);
+        setLoading(false);
+      }
     })();
 
     return () => {
@@ -233,7 +265,12 @@ function ConversationItem({
     onSelect(conversation);
   }, [onSelect, conversation]);
 
-  const formattedTime = formatWhatsAppListTimestamp(conversation.last_message_at);
+  const lastDate =
+    conversation.last_message_at ||
+    conversation.updated_at ||
+    conversation.created_at;
+  const formattedTime = formatWhatsAppListTimestamp(lastDate);
+  const tags = contact?.tags ?? [];
 
   return (
     <button
@@ -292,6 +329,29 @@ function ConversationItem({
             />
           </div>
         </div>
+        {/* Contact tags preview */}
+        {tags.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+            {tags.slice(0, 3).map((t) => (
+              <span
+                key={t.id}
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium leading-none border"
+                style={{
+                  backgroundColor: `${t.color || '#3b82f6'}18`,
+                  borderColor: `${t.color || '#3b82f6'}35`,
+                  color: t.color || '#93c5fd',
+                }}
+              >
+                {t.name}
+              </span>
+            ))}
+            {tags.length > 3 && (
+              <span className="text-[9px] text-slate-400 font-medium">
+                +{tags.length - 3}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </button>
   );

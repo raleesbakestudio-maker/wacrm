@@ -12,6 +12,7 @@ import type {
   ConversationStatus,
   MessageTemplate,
   Profile,
+  Tag,
 } from "@/types";
 import {
   MessageSquare,
@@ -185,9 +186,50 @@ export function MessageThread({
     const lastDate =
       messages.length > 0
         ? messages[messages.length - 1].created_at
-        : conversation?.last_message_at;
+        : conversation?.last_message_at ||
+          conversation?.updated_at ||
+          conversation?.created_at;
     return formatWhatsAppHeaderStatus(lastDate);
-  }, [messages, conversation?.last_message_at]);
+  }, [
+    messages,
+    conversation?.last_message_at,
+    conversation?.updated_at,
+    conversation?.created_at,
+  ]);
+
+  const [contactTags, setContactTags] = useState<Tag[]>(contact?.tags ?? []);
+
+  useEffect(() => {
+    if (!contact?.id) {
+      setContactTags([]);
+      return;
+    }
+    if (contact.tags && contact.tags.length > 0) {
+      setContactTags(contact.tags);
+    }
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("contact_tags")
+      .select("tag_id, tags(*)")
+      .eq("contact_id", contact.id)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("Failed to fetch contact tags for thread header:", error);
+          return;
+        }
+        if (data) {
+          const mapped = data
+            .filter((ct: Record<string, unknown>) => ct.tags)
+            .map((ct: Record<string, unknown>) => ct.tags as Tag);
+          setContactTags(mapped);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [contact?.id, contact?.tags]);
 
   // Profiles are bounded by RLS to rows the current user is allowed to
   // see — today that's just the current user, but the dropdown keeps the
@@ -783,15 +825,48 @@ export function MessageThread({
               {displayName.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-xs sm:text-sm font-semibold text-white group-hover:text-primary transition-colors">{displayName}</h2>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <h2 className="truncate text-xs sm:text-sm font-semibold text-white group-hover:text-primary transition-colors">
+                  {displayName}
+                </h2>
+                {contactTags.slice(0, 2).map((t) => (
+                  <span
+                    key={t.id}
+                    className="inline-flex shrink-0 items-center px-1.5 py-0.5 rounded text-[9px] font-medium leading-none border"
+                    style={{
+                      backgroundColor: `${t.color || '#3b82f6'}20`,
+                      borderColor: `${t.color || '#3b82f6'}40`,
+                      color: t.color || '#93c5fd',
+                    }}
+                  >
+                    {t.name}
+                  </span>
+                ))}
+                {contactTags.length > 2 && (
+                  <span className="text-[9px] text-slate-400 shrink-0">
+                    +{contactTags.length - 2}
+                  </span>
+                )}
+              </div>
               <p className="truncate text-[10px] sm:text-xs text-slate-400">
-                {contact.name ? (
+                {contact?.name ? (
                   <>
-                    <span>{contact.phone}</span>
-                    {lastActivityStatus && <span> • {lastActivityStatus}</span>}
+                    <span className="hidden sm:inline">{contact.phone}</span>
+                    {lastActivityStatus ? (
+                      <>
+                        <span className="hidden sm:inline"> • </span>
+                        <span className="text-emerald-400 sm:text-slate-400 font-medium sm:font-normal">
+                          {lastActivityStatus}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="sm:hidden">{contact.phone}</span>
+                    )}
                   </>
                 ) : (
-                  <span>{lastActivityStatus || contact.phone}</span>
+                  <span className="text-emerald-400 sm:text-slate-400 font-medium sm:font-normal">
+                    {lastActivityStatus || contact?.phone}
+                  </span>
                 )}
               </p>
             </div>
@@ -819,7 +894,9 @@ export function MessageThread({
             className="inline-flex items-center gap-1 h-7 px-2 text-xs rounded-md border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white shrink-0 lg:hidden"
           >
             <TagIcon className="h-3 w-3 text-primary shrink-0" />
-            <span className="text-[11px] font-medium hidden xs:inline">Tags</span>
+            <span className="text-[11px] font-medium">
+              {contactTags.length > 0 ? `${contactTags.length} Tags` : "Tags"}
+            </span>
           </button>
 
           {/* Manual refresh */}
