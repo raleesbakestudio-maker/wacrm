@@ -144,8 +144,33 @@ export function MessageComposer({
   }, [cleanupAudioStream, previewAudioUrl]);
 
   const startVoiceRecording = useCallback(async () => {
-    if (readOnly || sessionExpired) return;
+    if (readOnly) {
+      toast.error("Read-only access: നിങ്ങൾക്ക് മെസ്സേജ് അയക്കാനുള്ള അനുമതിയില്ല.");
+      return;
+    }
+    if (sessionExpired) {
+      toast.error(
+        "24-hour session expired! ഉപഭോക്താവ് തിരിച്ച് മെസ്സേജ് അയക്കാതെ വോയ്‌സ് അയക്കാൻ WhatsApp അനുവദിക്കില്ല. ദയവായി ആദ്യം ഒരു Template അയക്കുക.",
+        { duration: 6000 }
+      );
+      return;
+    }
+
     try {
+      if (typeof window !== "undefined") {
+        if (
+          !window.isSecureContext &&
+          window.location.hostname !== "localhost" &&
+          window.location.hostname !== "127.0.0.1"
+        ) {
+          toast.error(
+            "മൈക്രോഫോൺ സുരക്ഷിതമായ HTTPS അല്ലെങ്കിൽ localhost-ൽ മാത്രമേ പ്രവർത്തിക്കൂ (Insecure HTTP context).",
+            { duration: 6000 }
+          );
+          return;
+        }
+      }
+
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         toast.error("Audio recording is not supported in this browser.");
         return;
@@ -159,19 +184,24 @@ export function MessageComposer({
 
       let mimeType = "";
       if (typeof MediaRecorder !== "undefined") {
-        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+        if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = "audio/mp4";
+        } else if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
           mimeType = "audio/webm;codecs=opus";
         } else if (MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")) {
           mimeType = "audio/ogg;codecs=opus";
-        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
-          mimeType = "audio/mp4";
         }
       }
 
-      const recorder = new MediaRecorder(
-        stream,
-        mimeType ? { mimeType } : undefined
-      );
+      let recorder: MediaRecorder;
+      try {
+        recorder = mimeType
+          ? new MediaRecorder(stream, { mimeType })
+          : new MediaRecorder(stream);
+      } catch (recErr) {
+        console.warn("Failed with mimeType, falling back to default:", recErr);
+        recorder = new MediaRecorder(stream);
+      }
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
@@ -183,7 +213,7 @@ export function MessageComposer({
       recorder.onstop = () => {
         cleanupAudioStream();
         const finalBlob = new Blob(audioChunksRef.current, {
-          type: mimeType || "audio/ogg",
+          type: recorder.mimeType || mimeType || "audio/ogg",
         });
         setRecordedBlob(finalBlob);
         const objUrl = URL.createObjectURL(finalBlob);
@@ -199,21 +229,29 @@ export function MessageComposer({
       }, 1000);
     } catch (err: unknown) {
       console.error("Mic access error:", err);
-      const errorName = (err as { name?: string })?.name || "";
+      const errorObj = err as { name?: string; message?: string };
+      const errorName = errorObj?.name || "";
+      const errorMsg = errorObj?.message || "";
+
       if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
         toast.error(
-          "മൈക്രോഫോൺ അനുമതിയില്ല (Microphone Blocked). അഡ്രസ്സ് ബാറിലെ 🔒/🎙️ ഐക്കൺ ക്ലിക്ക് ചെയ്ത് Microphone 'Allow' നൽകുക.",
-          { duration: 6000 }
+          "മൈക്രോഫോൺ ആക്സസ് തടഞ്ഞിരിക്കുന്നു (NotAllowedError). Mac Settings ➡️ Privacy & Security ➡️ Microphone-ൽ Chrome ഓൺ ആണെന്നും പേജ് Refresh ചെയ്തെന്നും ഉറപ്പാക്കുക.",
+          { duration: 7000 }
         );
       } else if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
         toast.error(
-          "മൈക്രോഫോൺ കണ്ടെത്താനായില്ല (No microphone detected). മൈക്ക് കണക്റ്റ് ചെയ്തിട്ടുണ്ടെന്ന് ഉറപ്പാക്കുക.",
+          "മൈക്രോഫോൺ കണ്ടെത്താനായില്ല (NotFoundError). മൈക്ക് കണക്റ്റ് ചെയ്തിട്ടുണ്ടെന്ന് ഉറപ്പാക്കുക.",
           { duration: 5000 }
+        );
+      } else if (errorName === "NotReadableError") {
+        toast.error(
+          "മൈക്രോഫോൺ മറ്റൊരു ആപ്പ് ഉപയോഗിക്കുകയാണ് (NotReadableError). Zoom/FaceTime/Meet ക്ലോസ് ചെയ്യുക.",
+          { duration: 6000 }
         );
       } else {
         toast.error(
-          "Microphone access denied. Please allow microphone permission in your browser.",
-          { duration: 5000 }
+          `മൈക്രോഫോൺ എറർ (${errorName || "Error"}): ${errorMsg || "Unable to access mic"}`,
+          { duration: 6000 }
         );
       }
       discardVoiceRecording();
@@ -820,9 +858,16 @@ export function MessageComposer({
             size="sm"
             canAct={!readOnly}
             gateReason="send messages"
-            title="Record Voice Note (🎙️)"
-            disabled={sessionExpired || sending}
-            className="h-9 w-9 shrink-0 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-slate-800"
+            title={
+              sessionExpired
+                ? "24-hr session expired - cannot send voice note"
+                : "Record Voice Note (🎙️)"
+            }
+            disabled={sending}
+            className={cn(
+              "h-9 w-9 shrink-0 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-slate-800",
+              sessionExpired && "opacity-60 text-slate-400"
+            )}
             onClick={startVoiceRecording}
           >
             <Mic className="h-4 w-4" />
