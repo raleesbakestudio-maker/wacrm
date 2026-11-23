@@ -241,7 +241,7 @@ export default function BroadcastsPage() {
                 <TableHead className="hidden text-slate-400 lg:table-cell">Delivery</TableHead>
                 <TableHead className="hidden text-slate-400 lg:table-cell">Read</TableHead>
                 <TableHead className="text-slate-400">Status</TableHead>
-                <TableHead className="hidden text-slate-400 sm:table-cell">Date & Time</TableHead>
+                <TableHead className="text-slate-400 whitespace-nowrap">Date & Time</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -254,7 +254,18 @@ export default function BroadcastsPage() {
                     onClick={() => router.push(`/broadcasts/${broadcast.id}`)}
                   >
                     <TableCell className="font-medium text-white">
-                      {broadcast.name}
+                      <div>{broadcast.name}</div>
+                      <div className="sm:hidden mt-1 text-[11px] font-normal">
+                        {broadcast.status === 'scheduled' && broadcast.scheduled_at ? (
+                          <span className="text-blue-400 font-medium">
+                            📅 {formatDateTime(broadcast.scheduled_at)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">
+                            {formatDateTime(broadcast.created_at)}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="hidden text-slate-300 md:table-cell">
                       {broadcast.template_name}
@@ -289,7 +300,7 @@ export default function BroadcastsPage() {
                         {status.label}
                       </span>
                     </TableCell>
-                    <TableCell className="hidden text-slate-300 sm:table-cell whitespace-nowrap text-xs">
+                    <TableCell className="text-slate-300 whitespace-nowrap text-xs">
                       {broadcast.status === 'scheduled' && broadcast.scheduled_at ? (
                         <div className="flex flex-col gap-0.5">
                           <span className="text-blue-400 font-medium">

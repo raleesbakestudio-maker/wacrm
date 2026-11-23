@@ -296,9 +296,9 @@ export default function BroadcastDetailPage() {
                 {status.label}
               </span>
             </div>
-            <div className="mt-1 flex items-center gap-3 text-sm text-slate-400">
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-400">
               <span>Template: {broadcast.template_name}</span>
-              <span>-</span>
+              <span>•</span>
               <span>
                 Created {new Date(broadcast.created_at).toLocaleString([], {
                   day: 'numeric',
