@@ -41,6 +41,70 @@ export function isValidE164(phone: string): boolean {
 }
 
 /**
+ * Validate and format phone number for WhatsApp usage.
+ * Returns { isValid: boolean, phone: string, sanitized: string, error?: string }.
+ *
+ * Rules:
+ * - Strips all non-digit characters.
+ * - Auto-detects 10-digit Indian numbers starting with [6-9] and adds country code 91 (+91).
+ * - Handles 11-digit Indian numbers starting with trunk 0 followed by [6-9] -> +91.
+ * - Supports all international country codes (7 to 15 digits).
+ * - Enforces valid E.164 structure (must start with non-zero digit).
+ */
+export function validateAndFormatWhatsAppPhone(rawPhone: string): {
+  isValid: boolean;
+  phone: string;
+  sanitized: string;
+  error?: string;
+} {
+  if (!rawPhone || !rawPhone.trim()) {
+    return {
+      isValid: false,
+      phone: '',
+      sanitized: '',
+      error: 'Phone number is required',
+    };
+  }
+
+  // Strip all non-digit characters
+  let digits = rawPhone.replace(/\D/g, '');
+
+  if (!digits) {
+    return {
+      isValid: false,
+      phone: '',
+      sanitized: '',
+      error: 'WhatsApp number must contain valid digits',
+    };
+  }
+
+  // 10 digits starting with 6, 7, 8, or 9: default to India (+91)
+  if (digits.length === 10 && /^[6-9]/.test(digits)) {
+    digits = '91' + digits;
+  }
+  // 11 digits starting with 0 followed by 6, 7, 8, 9: replace leading trunk 0 with 91
+  else if (digits.length === 11 && /^0[6-9]/.test(digits)) {
+    digits = '91' + digits.slice(1);
+  }
+
+  // Check valid E.164 digits without plus (7 to 15 digits, first digit 1-9)
+  if (!/^[1-9]\d{6,14}$/.test(digits)) {
+    return {
+      isValid: false,
+      phone: digits,
+      sanitized: digits,
+      error: 'Invalid WhatsApp phone number format. Must be 7-15 digits with country code (e.g. +91 98765 43210)',
+    };
+  }
+
+  return {
+    isValid: true,
+    phone: '+' + digits,
+    sanitized: digits,
+  };
+}
+
+/**
  * Generate plausible phone number variants for retry when Meta's
  * sandbox rejects a number with error #131030 ("not in allowed list").
  *

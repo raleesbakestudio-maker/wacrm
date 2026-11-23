@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag, ContactNote, CustomField, ContactCustomValue } from '@/types';
+import { validateAndFormatWhatsAppPhone } from '@/lib/whatsapp/phone-utils';
 import {
   Sheet,
   SheetContent,
@@ -168,12 +169,36 @@ export function ContactDetailView({
       return;
     }
 
+    const phoneCheck = validateAndFormatWhatsAppPhone(editPhone);
+    if (!phoneCheck.isValid) {
+      toast.error(phoneCheck.error || 'സാധുവായ ഒരു WhatsApp നമ്പർ നൽകുക (ഉദാ: +91 98765 43210)');
+      return;
+    }
+
+    const validPhone = phoneCheck.phone;
+    const sanitizedDigits = phoneCheck.sanitized;
+
     setSavingDetails(true);
+
+    // Check if another contact has this phone number
+    const { data: duplicatePhone } = await supabase
+      .from('contacts')
+      .select('id, name')
+      .or(`phone.eq.${validPhone},phone.eq.${sanitizedDigits}`)
+      .neq('id', contactId)
+      .maybeSingle();
+
+    if (duplicatePhone) {
+      toast.error(`മറ്റൊരു കോൺടാക്റ്റിൽ ഈ WhatsApp നമ്പർ നിലവിലുണ്ട് (${duplicatePhone.name || validPhone})`);
+      setSavingDetails(false);
+      return;
+    }
+
     const { error } = await supabase
       .from('contacts')
       .update({
         name: editName.trim() || null,
-        phone: editPhone.trim(),
+        phone: validPhone,
         email: editEmail.trim() || null,
         company: editCompany.trim() || null,
         updated_at: new Date().toISOString(),
@@ -184,6 +209,7 @@ export function ContactDetailView({
       toast.error('Failed to update contact');
     } else {
       toast.success('Contact updated');
+      setEditPhone(validPhone);
       fetchContact();
       onUpdated();
     }

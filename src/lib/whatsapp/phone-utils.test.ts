@@ -6,6 +6,7 @@ import {
   phoneVariants,
   phonesMatch,
   sanitizePhoneForMeta,
+  validateAndFormatWhatsAppPhone,
 } from "./phone-utils";
 
 describe("sanitizePhoneForMeta", () => {
@@ -160,5 +161,45 @@ describe("isRecipientNotAllowedError", () => {
       false,
     );
     expect(isRecipientNotAllowedError("")).toBe(false);
+  });
+});
+
+describe("validateAndFormatWhatsAppPhone", () => {
+  it("formats international number with country code", () => {
+    const res = validateAndFormatWhatsAppPhone("+91 98765 43210");
+    expect(res.isValid).toBe(true);
+    expect(res.phone).toBe("+919876543210");
+    expect(res.sanitized).toBe("919876543210");
+  });
+
+  it("auto-formats 10-digit Indian numbers with +91", () => {
+    const res = validateAndFormatWhatsAppPhone("9876543210");
+    expect(res.isValid).toBe(true);
+    expect(res.phone).toBe("+919876543210");
+    expect(res.sanitized).toBe("919876543210");
+  });
+
+  it("handles trunk 0 on 11-digit Indian numbers", () => {
+    const res = validateAndFormatWhatsAppPhone("09876543210");
+    expect(res.isValid).toBe(true);
+    expect(res.phone).toBe("+919876543210");
+    expect(res.sanitized).toBe("919876543210");
+  });
+
+  it("accepts valid international numbers like UAE, US, UK", () => {
+    const uae = validateAndFormatWhatsAppPhone("+971 50 123 4567");
+    expect(uae.isValid).toBe(true);
+    expect(uae.phone).toBe("+971501234567");
+
+    const us = validateAndFormatWhatsAppPhone("+1 (415) 555-2671");
+    expect(us.isValid).toBe(true);
+    expect(us.phone).toBe("+14155552671");
+  });
+
+  it("rejects invalid, short, alphabetic, or empty numbers", () => {
+    expect(validateAndFormatWhatsAppPhone("").isValid).toBe(false);
+    expect(validateAndFormatWhatsAppPhone("abc").isValid).toBe(false);
+    expect(validateAndFormatWhatsAppPhone("12345").isValid).toBe(false);
+    expect(validateAndFormatWhatsAppPhone("0000000000").isValid).toBe(false);
   });
 });

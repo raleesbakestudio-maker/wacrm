@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Tag } from '@/types';
+import { validateAndFormatWhatsAppPhone, sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils';
 import {
   Dialog,
   DialogContent,
@@ -30,21 +31,23 @@ interface ParsedRow {
   company?: string;
 }
 
-function parseCSV(text: string): ParsedRow[] {
+function parseCSV(text: string): { rows: ParsedRow[]; invalidCount: number } {
   const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return [];
+  if (lines.length < 2) return { rows: [], invalidCount: 0 };
 
   const headerLine = lines[0];
   const headers = headerLine.split(',').map((h) => h.trim().toLowerCase().replace(/["']/g, ''));
 
   const phoneIdx = headers.indexOf('phone');
-  if (phoneIdx === -1) return [];
+  if (phoneIdx === -1) return { rows: [], invalidCount: 0 };
 
   const nameIdx = headers.indexOf('name');
   const emailIdx = headers.indexOf('email');
   const companyIdx = headers.indexOf('company');
 
   const rows: ParsedRow[] = [];
+  let invalidCount = 0;
+
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
@@ -65,11 +68,17 @@ function parseCSV(text: string): ParsedRow[] {
     }
     values.push(current.trim());
 
-    const phone = values[phoneIdx]?.replace(/["']/g, '').trim();
-    if (!phone) continue;
+    const rawPhone = values[phoneIdx]?.replace(/["']/g, '').trim();
+    if (!rawPhone) continue;
+
+    const phoneCheck = validateAndFormatWhatsAppPhone(rawPhone);
+    if (!phoneCheck.isValid) {
+      invalidCount++;
+      continue;
+    }
 
     rows.push({
-      phone,
+      phone: phoneCheck.phone,
       name: nameIdx >= 0 ? values[nameIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
       email: emailIdx >= 0 ? values[emailIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
       company:
@@ -77,7 +86,7 @@ function parseCSV(text: string): ParsedRow[] {
     });
   }
 
-  return rows;
+  return { rows, invalidCount };
 }
 
 export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps) {
@@ -182,12 +191,20 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
     setResult(null);
 
     const text = await selected.text();
-    const rows = parseCSV(text);
+    const { rows, invalidCount } = parseCSV(text);
 
     if (rows.length === 0) {
-      toast.error('No valid rows found. Ensure CSV has a "phone" column header.');
+      toast.error(
+        invalidCount > 0
+          ? 'CSV-യിലെ ഫോൺ നമ്പറുകൾ സാധുവായ WhatsApp നമ്പറുകളല്ല. (ഉദാ: +91 98765 43210 അല്ലെങ്കിൽ 9876543210)'
+          : 'No valid rows found. Ensure CSV has a "phone" column header.'
+      );
       setParsedRows([]);
       return;
+    }
+
+    if (invalidCount > 0) {
+      toast.warning(`${invalidCount} വരികളിൽ സാധുവായ WhatsApp നമ്പർ ഇല്ലാത്തതിനാൽ ഒഴിവാക്കി.`);
     }
 
     setParsedRows(rows);
@@ -213,56 +230,75 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
         .eq('user_id', user.id)
         .maybeSingle();
 
-      // Batch insert in chunks of 50
+      const accountId = profile?.account_id;
+
+      // Batch process in chunks of 50
       const chunkSize = 50;
       for (let i = 0; i < parsedRows.length; i += chunkSize) {
         const chunk = parsedRows.slice(i, i + chunkSize);
-        const rows = chunk.map((row) => ({
-          user_id: user.id,
-          account_id: profile?.account_id,
-          phone: row.phone,
-          name: row.name || null,
-          email: row.email || null,
-          company: row.company || null,
-        }));
 
-        const { data, error } = await supabase
+        // Gather phones in this chunk (both formatted with '+' and sanitized digits)
+        const chunkPhones = chunk.map((r) => r.phone);
+        const chunkSanitized = chunkPhones.map((p) => sanitizePhoneForMeta(p));
+        const allSearchPhones = Array.from(new Set([...chunkPhones, ...chunkSanitized]));
+
+        let existingQuery = supabase
           .from('contacts')
-          .insert(rows)
-          .select('id');
+          .select('id, phone, name')
+          .in('phone', allSearchPhones);
 
-        if (error) {
-          // Try individual inserts for this chunk
-          for (const row of rows) {
-            const { data: singleContact, error: singleErr } = await supabase
+        if (accountId) {
+          existingQuery = existingQuery.eq('account_id', accountId);
+        }
+
+        const { data: existingRows } = await existingQuery;
+
+        const existingMap = new Map<string, string>();
+        for (const row of existingRows ?? []) {
+          existingMap.set(sanitizePhoneForMeta(row.phone), row.id);
+        }
+
+        for (const row of chunk) {
+          const norm = sanitizePhoneForMeta(row.phone);
+          const existingContactId = existingMap.get(norm);
+
+          if (existingContactId) {
+            // Contact already exists in the system! Do NOT insert duplicate contact.
+            imported++;
+            if (selectedTagIds.length > 0) {
+              const tagRows = selectedTagIds.map((tId) => ({
+                contact_id: existingContactId,
+                tag_id: tId,
+              }));
+              await supabase.from('contact_tags').upsert(tagRows, { onConflict: 'contact_id,tag_id' });
+            }
+          } else {
+            // Brand new contact: insert
+            const { data: newC, error: insErr } = await supabase
               .from('contacts')
-              .insert(row)
+              .insert({
+                user_id: user.id,
+                account_id: accountId,
+                phone: row.phone,
+                name: row.name || null,
+                email: row.email || null,
+                company: row.company || null,
+              })
               .select('id')
               .single();
-            if (singleErr) {
+
+            if (insErr) {
               failed++;
-            } else {
+            } else if (newC?.id) {
               imported++;
-              if (singleContact && selectedTagIds.length > 0) {
+              existingMap.set(norm, newC.id);
+              if (selectedTagIds.length > 0) {
                 const tagRows = selectedTagIds.map((tId) => ({
-                  contact_id: singleContact.id,
+                  contact_id: newC.id,
                   tag_id: tId,
                 }));
-                await supabase.from('contact_tags').insert(tagRows);
+                await supabase.from('contact_tags').upsert(tagRows, { onConflict: 'contact_id,tag_id' });
               }
-            }
-          }
-        } else {
-          imported += data?.length ?? chunk.length;
-          if (data && selectedTagIds.length > 0) {
-            const contactTagRows: { contact_id: string; tag_id: string }[] = [];
-            for (const c of data) {
-              for (const tId of selectedTagIds) {
-                contactTagRows.push({ contact_id: c.id, tag_id: tId });
-              }
-            }
-            if (contactTagRows.length > 0) {
-              await supabase.from('contact_tags').insert(contactTagRows);
             }
           }
         }
@@ -270,7 +306,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
 
       setResult({ imported, failed });
       if (imported > 0) {
-        toast.success(`${imported} contact${imported !== 1 ? 's' : ''} imported`);
+        toast.success(`${imported} contact${imported !== 1 ? 's' : ''} processed`);
         onImported();
       }
       if (failed > 0) {
@@ -292,8 +328,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
         <DialogHeader>
           <DialogTitle className="text-white">Import Contacts</DialogTitle>
           <DialogDescription className="text-slate-400">
-            Upload a CSV file with a &quot;phone&quot; column (required). Optional columns:
-            name, email, company.
+            Upload a CSV file with a &quot;phone&quot; column (valid WhatsApp numbers required). If a contact exists with other tags, new tags will be linked without duplicate entries.
           </DialogDescription>
         </DialogHeader>
 

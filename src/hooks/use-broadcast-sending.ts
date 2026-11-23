@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Contact, MessageTemplate } from '@/types';
+import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils';
 
 export type CustomFieldOperator = 'is' | 'is_not' | 'contains';
 
@@ -192,6 +193,16 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       const excludedIds = new Set((excludeRows ?? []).map((r) => r.contact_id));
       contacts = contacts.filter((c) => !excludedIds.has(c.id));
     }
+
+    // De-duplicate contacts by normalized phone so contacts with multiple tags
+    // or duplicate contact entries never receive the broadcast message twice.
+    const seenPhones = new Set<string>();
+    contacts = contacts.filter((c) => {
+      const norm = sanitizePhoneForMeta(c.phone) || c.id;
+      if (seenPhones.has(norm)) return false;
+      seenPhones.add(norm);
+      return true;
+    });
 
     return contacts;
   }

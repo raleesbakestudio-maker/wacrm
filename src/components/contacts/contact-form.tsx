@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
+import { validateAndFormatWhatsAppPhone, sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils';
 import {
   Dialog,
   DialogContent,
@@ -130,10 +131,14 @@ export function ContactForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!phone.trim()) {
-      toast.error('Phone number is required');
+    const phoneCheck = validateAndFormatWhatsAppPhone(phone);
+    if (!phoneCheck.isValid) {
+      toast.error(phoneCheck.error || 'സാധുവായ ഒരു WhatsApp നമ്പർ നൽകുക (ഉദാ: +91 98765 43210 അല്ലെങ്കിൽ 9876543210)');
       return;
     }
+
+    const validPhone = phoneCheck.phone;
+    const sanitizedDigits = phoneCheck.sanitized;
 
     setSaving(true);
 
@@ -144,63 +149,120 @@ export function ContactForm({
       const user = session?.user;
       if (!user) throw new Error('Not authenticated');
 
-      let contactId = contact?.id;
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      if (isEdit && contactId) {
+      const accountId = profile?.account_id;
+
+      // Look up if any contact in this account already has this phone number
+      let dupQuery = supabase
+        .from('contacts')
+        .select('id, name, phone')
+        .or(`phone.eq.${validPhone},phone.eq.${sanitizedDigits}`);
+
+      if (accountId) {
+        dupQuery = dupQuery.eq('account_id', accountId);
+      }
+
+      const { data: existingMatches } = await dupQuery;
+
+      if (isEdit && contact?.id) {
+        // If editing, check that the phone is not taken by ANOTHER contact
+        const otherMatch = existingMatches?.find((c) => c.id !== contact.id);
+        if (otherMatch) {
+          toast.error(`മറ്റൊരു കോൺടാക്റ്റിൽ ഈ WhatsApp നമ്പർ നിലവിലുണ്ട് (${otherMatch.name || validPhone})`);
+          setSaving(false);
+          return;
+        }
+
         const { error } = await supabase
           .from('contacts')
           .update({
             name: name.trim() || null,
-            phone: phone.trim(),
+            phone: validPhone,
             email: email.trim() || null,
             company: company.trim() || null,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', contactId);
+          .eq('id', contact.id);
         if (error) throw error;
-      } else {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('account_id')
-          .eq('user_id', user.id)
-          .maybeSingle();
 
-        const { data, error } = await supabase
-          .from('contacts')
-          .insert({
-            user_id: user.id,
-            account_id: profile?.account_id,
-            name: name.trim() || null,
-            phone: phone.trim(),
-            email: email.trim() || null,
-            company: company.trim() || null,
-          })
-          .select('id')
-          .single();
-        if (error) throw error;
-        contactId = data.id;
-      }
-
-      // Sync tags
-      if (contactId) {
-        await supabase
-          .from('contact_tags')
-          .delete()
-          .eq('contact_id', contactId);
-
+        // Sync tags
+        await supabase.from('contact_tags').delete().eq('contact_id', contact.id);
         if (selectedTagIds.length > 0) {
           const tagRows = selectedTagIds.map((tag_id) => ({
-            contact_id: contactId!,
+            contact_id: contact.id,
             tag_id,
           }));
-          const { error: tagError } = await supabase
-            .from('contact_tags')
-            .insert(tagRows);
+          const { error: tagError } = await supabase.from('contact_tags').insert(tagRows);
           if (tagError) throw tagError;
+        }
+
+        toast.success('Contact updated');
+      } else {
+        // Creating a new contact
+        const existing = existingMatches?.[0];
+        if (existing) {
+          // Contact with this phone already exists! Update details and MERGE tags so no duplicate is created.
+          await supabase
+            .from('contacts')
+            .update({
+              name: name.trim() || existing.name,
+              email: email.trim() || null,
+              company: company.trim() || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id);
+
+          if (selectedTagIds.length > 0) {
+            const { data: currentTags } = await supabase
+              .from('contact_tags')
+              .select('tag_id')
+              .eq('contact_id', existing.id);
+            const currentTagSet = new Set((currentTags ?? []).map((t) => t.tag_id));
+            const newTagsToAdd = selectedTagIds
+              .filter((tid) => !currentTagSet.has(tid))
+              .map((tag_id) => ({
+                contact_id: existing.id,
+                tag_id,
+              }));
+            if (newTagsToAdd.length > 0) {
+              await supabase.from('contact_tags').insert(newTagsToAdd);
+            }
+          }
+
+          toast.success(`കോൺടാക്റ്റ് നിലവിലുണ്ട്. പുതിയ ടാഗുകൾ ചേർത്തു (${existing.name || validPhone})`);
+        } else {
+          // Brand new contact
+          const { data: newC, error } = await supabase
+            .from('contacts')
+            .insert({
+              user_id: user.id,
+              account_id: accountId,
+              name: name.trim() || null,
+              phone: validPhone,
+              email: email.trim() || null,
+              company: company.trim() || null,
+            })
+            .select('id')
+            .single();
+          if (error) throw error;
+
+          if (selectedTagIds.length > 0 && newC?.id) {
+            const tagRows = selectedTagIds.map((tag_id) => ({
+              contact_id: newC.id,
+              tag_id,
+            }));
+            await supabase.from('contact_tags').insert(tagRows);
+          }
+
+          toast.success('Contact created');
         }
       }
 
-      toast.success(isEdit ? 'Contact updated' : 'Contact created');
       onOpenChange(false);
       onSaved();
     } catch (err: unknown) {
@@ -241,17 +303,17 @@ export function ContactForm({
 
           <div className="space-y-2">
             <Label htmlFor="cf-phone" className="text-slate-300">
-              Phone <span className="text-red-400">*</span>
+              WhatsApp Phone <span className="text-red-400">*</span>
             </Label>
             <Input
               id="cf-phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+1 234 567 8900"
+              placeholder="+91 98765 43210 or 9876543210"
               className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
             />
             <p className="text-xs text-slate-500">
-              Include country code, e.g. +1 for US
+              Valid WhatsApp number with country code (e.g. +91 98765 43210 or 9876543210)
             </p>
           </div>
 

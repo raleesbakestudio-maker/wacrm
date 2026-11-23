@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
+import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -137,7 +138,7 @@ export default function ContactsPage() {
         .from('contact_tags')
         .select('contact_id')
         .eq('tag_id', selectedTagId);
-      const taggedContactIds = ctRows?.map((r) => r.contact_id) ?? [];
+      const taggedContactIds = Array.from(new Set(ctRows?.map((r) => r.contact_id) ?? []));
       if (taggedContactIds.length === 0) {
         setTotalCount(0);
         setContacts([]);
@@ -204,7 +205,30 @@ export default function ContactsPage() {
         .filter(Boolean),
     }));
 
-    setContacts(enriched);
+    // Deduplicate contacts by normalized phone so contacts with multiple tags or duplicate entries are never shown twice
+    const seenByPhone = new Map<string, ContactWithTags>();
+    for (const c of enriched) {
+      const norm = sanitizePhoneForMeta(c.phone) || c.id;
+      const existing = seenByPhone.get(norm);
+      if (existing) {
+        // Merge tags from duplicate row so all tags are displayed
+        const existingTags = existing.tags ?? [];
+        const existingTagIds = new Set(existingTags.map((t) => t.id));
+        const contactTags = c.tags ?? [];
+        for (const t of contactTags) {
+          if (!existingTagIds.has(t.id)) {
+            existingTags.push(t);
+            existingTagIds.add(t.id);
+          }
+        }
+        existing.tags = existingTags;
+      } else {
+        seenByPhone.set(norm, { ...c, tags: [...(c.tags ?? [])] });
+      }
+    }
+    const deduped = Array.from(seenByPhone.values());
+
+    setContacts(deduped);
     setLoading(false);
   }, [supabase, page, pageSize, search, selectedTagId, attributeFilter, sortOption, tagsMap]);
 
@@ -294,7 +318,7 @@ export default function ContactsPage() {
           .from('contact_tags')
           .select('contact_id')
           .eq('tag_id', selectedTagId);
-        const taggedContactIds = ctRows?.map((r) => r.contact_id) ?? [];
+        const taggedContactIds = Array.from(new Set(ctRows?.map((r) => r.contact_id) ?? []));
         if (taggedContactIds.length === 0) {
           toast.dismiss('export-csv');
           toast.error('No contacts to export');
@@ -346,9 +370,25 @@ export default function ContactsPage() {
         if (tName) tagsByContact[ct.contact_id].push(tName);
       });
 
+      // Deduplicate export rows by normalized phone and merge tags
+      const exportByPhone = new Map<string, { contact: typeof exportData[0]; tags: string[] }>();
+      for (const c of exportData) {
+        const norm = sanitizePhoneForMeta(c.phone) || c.id;
+        const cTags = tagsByContact[c.id] ?? [];
+        const existing = exportByPhone.get(norm);
+        if (existing) {
+          for (const t of cTags) {
+            if (!existing.tags.includes(t)) existing.tags.push(t);
+          }
+        } else {
+          exportByPhone.set(norm, { contact: c, tags: [...cTags] });
+        }
+      }
+
+      const dedupedExport = Array.from(exportByPhone.values());
       const headers = ['Name', 'Phone', 'Email', 'Company', 'Tags', 'Created Date'];
-      const rows = exportData.map((c) => {
-        const cTags = tagsByContact[c.id]?.join('; ') ?? '';
+      const rows = dedupedExport.map(({ contact: c, tags }) => {
+        const cTags = tags.join('; ');
         return [
           `"${(c.name || '').replace(/"/g, '""')}"`,
           `"${(c.phone || '').replace(/"/g, '""')}"`,
@@ -372,7 +412,7 @@ export default function ContactsPage() {
       URL.revokeObjectURL(url);
 
       toast.dismiss('export-csv');
-      toast.success(`Exported ${exportData.length} contacts successfully!`);
+      toast.success(`Exported ${dedupedExport.length} contacts successfully!`);
     } catch (err) {
       console.error('Export error:', err);
       toast.dismiss('export-csv');
