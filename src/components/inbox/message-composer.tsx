@@ -178,7 +178,67 @@ export function MessageComposer({
 
       discardVoiceRecording();
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Diagnostic check: inspect devices and permission state
+      let permState = "unknown";
+      let audioInputCount = 0;
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const inputs = devices.filter((d) => d.kind === "audioinput");
+        audioInputCount = inputs.length;
+        console.log(
+          `[Mic-Diagnostic] Found ${inputs.length} audio input(s):`,
+          inputs.map((d) => d.label || d.deviceId)
+        );
+
+        if (navigator.permissions && navigator.permissions.query) {
+          const perm = await navigator.permissions.query({
+            name: "microphone" as PermissionName,
+          });
+          permState = perm.state;
+          console.log("[Mic-Diagnostic] Permission state:", perm.state);
+        }
+      } catch (diagErr) {
+        console.warn("[Mic-Diagnostic] check failed:", diagErr);
+      }
+
+      if (audioInputCount === 0) {
+        toast.error(
+          "കമ്പ്യൂട്ടറിൽ മൈക്രോഫോൺ കണ്ടെത്തിയിട്ടില്ല (No microphone found). Mac Settings ➡️ Sound ➡️ Input പരിശോധിക്കുക.",
+          { duration: 7000 }
+        );
+        return;
+      }
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (userMediaErr: unknown) {
+        const errObj = userMediaErr as { name?: string; message?: string };
+        const eName = errObj?.name || "";
+        console.error(
+          `[Mic-Diagnostic] getUserMedia failed. PermState=${permState}, Inputs=${audioInputCount}:`,
+          userMediaErr
+        );
+
+        if (permState === "denied") {
+          toast.error(
+            "Chrome സൈറ്റ് സെറ്റിംഗ്സിൽ മൈക്രോഫോൺ Blocked ആണ്. അഡ്രസ്സ് ബാറിലെ 🎛️ ഐക്കൺ ക്ലിക്ക് ചെയ്ത് Reset permission / Allow നൽകുക.",
+            { duration: 7000 }
+          );
+        } else if (permState === "granted" || permState === "prompt") {
+          toast.error(
+            "Chrome-ൽ അനുമതിയുണ്ട്, പക്ഷെ Mac OS തടഞ്ഞിരിക്കുന്നു. Chrome പൂർണ്ണമായി Quit (⌘+Q) ചെയ്ത് വീണ്ടും തുറക്കുക, അല്ലെങ്കിൽ Safari-ൽ നോക്കുക.",
+            { duration: 8000 }
+          );
+        } else {
+          toast.error(
+            `മൈക്രോഫോൺ അനുമതിയില്ല (${eName || "NotAllowedError"}). Chrome റീസ്റ്റാർട്ട് (⌘+Q) ചെയ്യുക.`,
+            { duration: 7000 }
+          );
+        }
+        discardVoiceRecording();
+        return;
+      }
       audioStreamRef.current = stream;
       audioChunksRef.current = [];
 
