@@ -27,8 +27,8 @@ export function ReplyQuote({
       className={cn(
         "flex items-start gap-2 border-l-2 border-primary px-2 py-1",
         isChip
-          ? "rounded-md bg-slate-800/80"
-          : "mb-1.5 rounded-md bg-black/20",
+          ? "rounded-md bg-slate-100 dark:bg-slate-800/80"
+          : "mb-1.5 rounded-md bg-black/5 dark:bg-black/20",
       )}
     >
       <div className="min-w-0 flex-1 overflow-hidden">
@@ -42,7 +42,7 @@ export function ReplyQuote({
          *  layout wider, shoving the contact sidebar off-screen.
          *  `break-words` also wraps long URLs that have no whitespace
          *  to break on. Issue #165. */}
-        <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] line-clamp-3 text-xs text-slate-200/80">
+        <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] line-clamp-3 text-xs text-slate-700 dark:text-slate-200/80">
           {preview}
         </div>
       </div>

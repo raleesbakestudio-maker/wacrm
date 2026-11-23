@@ -14,8 +14,8 @@
  */
 
 export const THEME_IDS = [
-  "violet",
   "emerald",
+  "violet",
   "cobalt",
   "amber",
   "rose",
@@ -23,9 +23,21 @@ export const THEME_IDS = [
 
 export type ThemeId = (typeof THEME_IDS)[number];
 
-export const DEFAULT_THEME: ThemeId = "violet";
+export const DEFAULT_THEME: ThemeId = "emerald";
 
 export const STORAGE_KEY = "wacrm.theme";
+
+export const THEME_MODES = ["light", "dark", "system"] as const;
+export type ThemeMode = (typeof THEME_MODES)[number];
+export const DEFAULT_MODE: ThemeMode = "system";
+export const STORAGE_KEY_MODE = "wacrm.theme_mode";
+
+export function isThemeMode(value: unknown): value is ThemeMode {
+  return (
+    typeof value === "string" &&
+    (THEME_MODES as ReadonlyArray<string>).includes(value)
+  );
+}
 
 export interface ThemeMeta {
   id: ThemeId;
@@ -42,16 +54,16 @@ export interface ThemeMeta {
 
 export const THEMES: ReadonlyArray<ThemeMeta> = [
   {
-    id: "violet",
-    name: "Violet",
-    tagline: "The default — confident, slightly playful.",
-    swatch: "oklch(0.526 0.247 293)",
+    id: "emerald",
+    name: "Emerald (WhatsApp)",
+    tagline: "Official WhatsApp signature green — clean and familiar.",
+    swatch: "oklch(0.62 0.16 162)",
   },
   {
-    id: "emerald",
-    name: "Emerald",
-    tagline: "Growth-coded, nods at messaging without copying WhatsApp green.",
-    swatch: "oklch(0.62 0.16 162)",
+    id: "violet",
+    name: "Violet",
+    tagline: "Confident, slightly playful accent.",
+    swatch: "oklch(0.526 0.247 293)",
   },
   {
     id: "cobalt",
@@ -61,8 +73,8 @@ export const THEMES: ReadonlyArray<ThemeMeta> = [
   },
   {
     id: "amber",
-    name: "Amber",
-    tagline: "Warm and friendly — feels good for SMB teams.",
+    name: "Amber (Ralees Gold)",
+    tagline: "Warm and friendly — RaleesBake Royal Gold vibe.",
     swatch: "oklch(0.745 0.16 65)",
   },
   {

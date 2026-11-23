@@ -926,7 +926,7 @@ export function MessageThread({
               <div key={group.date}>
                 {/* Date separator */}
                 <div className="mb-4 flex items-center justify-center">
-                  <span className="rounded-full bg-slate-800 px-3 py-1 text-[10px] font-medium text-slate-400">
+                  <span className="rounded-full bg-white/90 shadow-xs dark:shadow-none dark:bg-slate-800 px-3 py-1 text-[10px] font-medium text-slate-600 dark:text-slate-400">
                     {formatDateSeparator(group.date)}
                   </span>
                 </div>

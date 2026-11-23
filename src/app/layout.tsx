@@ -3,7 +3,7 @@ import Script from "next/script";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
-import { DEFAULT_THEME, STORAGE_KEY, THEME_IDS } from "@/lib/themes";
+import { DEFAULT_THEME, STORAGE_KEY, STORAGE_KEY_MODE, THEME_IDS } from "@/lib/themes";
 import { PwaRegister } from "@/components/pwa/pwa-register";
 
 export const metadata: Metadata = {
@@ -46,14 +46,30 @@ export const viewport: Viewport = {
 const THEME_BOOT_SCRIPT = `
 (function(){
   try {
-    var STORAGE_KEY = ${JSON.stringify(STORAGE_KEY)};
-    var DEFAULT = ${JSON.stringify(DEFAULT_THEME)};
-    var ALLOWED = ${JSON.stringify(THEME_IDS)};
-    var saved = localStorage.getItem(STORAGE_KEY);
-    var theme = ALLOWED.indexOf(saved) !== -1 ? saved : DEFAULT;
+    var THEME_KEY = ${JSON.stringify(STORAGE_KEY)};
+    var MODE_KEY = ${JSON.stringify(STORAGE_KEY_MODE)};
+    var DEFAULT_THEME = ${JSON.stringify(DEFAULT_THEME)};
+    var ALLOWED_THEMES = ${JSON.stringify(THEME_IDS)};
+
+    var savedMode = localStorage.getItem(MODE_KEY);
+    var mode = (savedMode === "light" || savedMode === "dark" || savedMode === "system") ? savedMode : "system";
+    var resolvedMode = mode === "system" ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : mode;
+    document.documentElement.dataset.mode = resolvedMode;
+    if (resolvedMode === "dark") {
+      document.documentElement.classList.add("dark");
+      document.documentElement.classList.remove("light");
+    } else {
+      document.documentElement.classList.remove("dark");
+      document.documentElement.classList.add("light");
+    }
+
+    var savedTheme = localStorage.getItem(THEME_KEY);
+    var theme = ALLOWED_THEMES.indexOf(savedTheme) !== -1 ? savedTheme : DEFAULT_THEME;
     document.documentElement.dataset.theme = theme;
   } catch (_e) {
     document.documentElement.dataset.theme = ${JSON.stringify(DEFAULT_THEME)};
+    document.documentElement.dataset.mode = "dark";
+    document.documentElement.classList.add("dark");
   }
 })();
 `;

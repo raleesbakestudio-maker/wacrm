@@ -30,15 +30,15 @@ interface MessageBubbleProps {
 function StatusIcon({ status }: { status: Message["status"] }) {
   switch (status) {
     case "sending":
-      return <Clock className="h-3 w-3 text-slate-400" />;
+      return <Clock className="h-3 w-3 text-slate-500 dark:text-slate-400" />;
     case "sent":
-      return <Check className="h-3 w-3 text-slate-400" />;
+      return <Check className="h-3 w-3 text-slate-500 dark:text-slate-400" />;
     case "delivered":
-      return <CheckCheck className="h-3 w-3 text-slate-400" />;
+      return <CheckCheck className="h-3 w-3 text-slate-500 dark:text-slate-400" />;
     case "read":
-      return <CheckCheck className="h-3 w-3 text-blue-400" />;
+      return <CheckCheck className="h-3 w-3 text-[#53bdeb] dark:text-blue-400" />;
     case "failed":
-      return <XCircle className="h-3 w-3 text-red-400" />;
+      return <XCircle className="h-3 w-3 text-red-500 dark:text-red-400" />;
     default:
       return null;
   }
@@ -153,8 +153,8 @@ function renderTextWithLinks(text: string | null | undefined, isAgent: boolean) 
             className={cn(
               "underline underline-offset-2 font-medium transition-colors cursor-pointer",
               isAgent
-                ? "text-blue-100 hover:text-white"
-                : "text-blue-400 hover:text-blue-300"
+                ? "text-[#027eb5] hover:text-[#005c87] dark:text-blue-100 dark:hover:text-white"
+                : "text-[#027eb5] hover:text-[#005c87] dark:text-blue-400 dark:hover:text-blue-300"
             )}
           >
             {url}
@@ -313,10 +313,10 @@ export function MessageBubble({
     >
       <div
         className={cn(
-          "relative max-w-full rounded-2xl px-3 py-2 overflow-hidden break-words [overflow-wrap:anywhere]",
+          "relative max-w-full rounded-2xl px-3 py-2 overflow-hidden break-words [overflow-wrap:anywhere] shadow-xs",
           isAgent
-            ? "rounded-br-md bg-primary text-primary-foreground"
-            : "rounded-bl-md bg-slate-800 text-slate-100",
+            ? "rounded-br-md bg-[#d9fdd3] text-[#111b21] dark:bg-primary dark:text-primary-foreground"
+            : "rounded-bl-md bg-white text-[#111b21] border border-slate-200/60 dark:border-transparent dark:bg-slate-800 dark:text-slate-100",
         )}
       >
         {reply && (
@@ -329,7 +329,7 @@ export function MessageBubble({
             isAgent ? "justify-end" : "justify-start",
           )}
         >
-          <span className="text-[10px] text-white/60">{time}</span>
+          <span className="text-[10px] text-slate-500 dark:text-white/60">{time}</span>
           {isAgent && <StatusIcon status={message.status} />}
         </div>
       </div>

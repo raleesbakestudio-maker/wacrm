@@ -271,3 +271,226 @@ html[data-theme="rose"] {
     @apply font-sans;
   }
 }
+
+/* ============================================================
+ * WHATSAPP LIGHT THEME SYSTEM
+ *
+ * Client-side WhatsApp Light mode styling:
+ * - Wallpaper: #efeae2 with subtle doodle
+ * - Base surface: #f0f2f5 (WhatsApp Web canvas)
+ * - Panels, Cards, Modals: #ffffff with clean borders
+ * - Text: #111b21 (authentic WhatsApp dark slate charcoal)
+ * - Muted: #667781
+ * ============================================================ */
+
+html[data-mode="light"],
+html.light {
+  --background: #f0f2f5;
+  --foreground: #111b21;
+  --card: #ffffff;
+  --card-foreground: #111b21;
+  --popover: #ffffff;
+  --popover-foreground: #111b21;
+  --secondary: #f0f2f5;
+  --secondary-foreground: #111b21;
+  --muted: #f0f2f5;
+  --muted-foreground: #667781;
+  --accent: #f0f2f5;
+  --accent-foreground: #111b21;
+  --destructive: #ef4444;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #008069;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #111b21;
+  --sidebar-primary: #008069;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f0f2f5;
+  --sidebar-accent-foreground: #111b21;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #008069;
+}
+
+/* Light mode primary accents by selected color theme */
+html[data-mode="light"][data-theme="emerald"],
+html.light[data-theme="emerald"],
+html[data-mode="light"]:not([data-theme]),
+html.light:not([data-theme]) {
+  --primary: #008069;
+  --primary-foreground: #ffffff;
+  --primary-hover: #056162;
+  --primary-soft: rgba(0, 128, 105, 0.12);
+  --primary-soft-2: rgba(0, 128, 105, 0.2);
+}
+
+html[data-mode="light"][data-theme="violet"],
+html.light[data-theme="violet"] {
+  --primary: oklch(0.526 0.247 293);
+  --primary-foreground: #ffffff;
+  --primary-hover: oklch(0.48 0.22 293);
+  --primary-soft: oklch(0.526 0.247 293 / 0.12);
+  --primary-soft-2: oklch(0.526 0.247 293 / 0.2);
+}
+
+html[data-mode="light"][data-theme="cobalt"],
+html.light[data-theme="cobalt"] {
+  --primary: oklch(0.55 0.2 254);
+  --primary-foreground: #ffffff;
+  --primary-hover: oklch(0.48 0.18 254);
+  --primary-soft: oklch(0.55 0.2 254 / 0.12);
+  --primary-soft-2: oklch(0.55 0.2 254 / 0.2);
+}
+
+html[data-mode="light"][data-theme="amber"],
+html.light[data-theme="amber"] {
+  --primary: #d97706;
+  --primary-foreground: #ffffff;
+  --primary-hover: #b45309;
+  --primary-soft: rgba(217, 119, 6, 0.12);
+  --primary-soft-2: rgba(217, 119, 6, 0.2);
+}
+
+html[data-mode="light"][data-theme="rose"],
+html.light[data-theme="rose"] {
+  --primary: oklch(0.58 0.22 16);
+  --primary-foreground: #ffffff;
+  --primary-hover: oklch(0.52 0.2 16);
+  --primary-soft: oklch(0.58 0.22 16 / 0.12);
+  --primary-soft-2: oklch(0.58 0.22 16 / 0.2);
+}
+
+/* Light mode surface & card overrides */
+html[data-mode="light"] .bg-slate-950,
+html.light .bg-slate-950 {
+  background-color: #f0f2f5 !important;
+}
+
+html[data-mode="light"] .bg-slate-900,
+html.light .bg-slate-900 {
+  background-color: #ffffff !important;
+}
+
+html[data-mode="light"] .bg-slate-900\/50,
+html.light .bg-slate-900\/50 {
+  background-color: rgba(255, 255, 255, 0.7) !important;
+}
+
+html[data-mode="light"] .bg-slate-900\/80,
+html.light .bg-slate-900\/80 {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html[data-mode="light"] .bg-slate-900\/95,
+html.light .bg-slate-900\/95 {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+}
+
+html[data-mode="light"] .bg-slate-800,
+html.light .bg-slate-800 {
+  background-color: #f8fafc !important;
+}
+
+html[data-mode="light"] .bg-slate-800\/50,
+html.light .bg-slate-800\/50,
+html[data-mode="light"] .bg-slate-800\/80,
+html.light .bg-slate-800\/80 {
+  background-color: rgba(241, 245, 249, 0.8) !important;
+}
+
+html[data-mode="light"] .bg-slate-700,
+html.light .bg-slate-700 {
+  background-color: #e2e8f0 !important;
+}
+
+/* Light mode borders */
+html[data-mode="light"] .border-slate-800,
+html.light .border-slate-800,
+html[data-mode="light"] .border-slate-700,
+html.light .border-slate-700 {
+  border-color: #e2e8f0 !important;
+}
+
+html[data-mode="light"] .border-slate-600,
+html.light .border-slate-600 {
+  border-color: #cbd5e1 !important;
+}
+
+/* Light mode text contrast */
+html[data-mode="light"] .text-white:not(.text-primary-foreground):not(.keep-white),
+html.light .text-white:not(.text-primary-foreground):not(.keep-white) {
+  color: #111b21 !important;
+}
+
+html[data-mode="light"] .text-slate-100,
+html.light .text-slate-100 {
+  color: #111b21 !important;
+}
+
+html[data-mode="light"] .text-slate-200,
+html.light .text-slate-200 {
+  color: #1e293b !important;
+}
+
+html[data-mode="light"] .text-slate-300,
+html.light .text-slate-300 {
+  color: #334155 !important;
+}
+
+html[data-mode="light"] .text-slate-400,
+html.light .text-slate-400 {
+  color: #64748b !important;
+}
+
+html[data-mode="light"] .text-slate-500,
+html.light .text-slate-500 {
+  color: #667781 !important;
+}
+
+/* Retain white text inside primary and colored buttons/badges */
+html[data-mode="light"] .bg-primary,
+html.light .bg-primary,
+html[data-mode="light"] .bg-primary *,
+html.light .bg-primary *,
+html[data-mode="light"] .text-primary-foreground,
+html.light .text-primary-foreground,
+html[data-mode="light"] button.bg-primary,
+html.light button.bg-primary,
+html[data-mode="light"] .bg-red-500,
+html.light .bg-red-500,
+html[data-mode="light"] .bg-red-600,
+html.light .bg-red-600,
+html[data-mode="light"] .bg-emerald-600,
+html.light .bg-emerald-600,
+html[data-mode="light"] .bg-blue-600,
+html.light .bg-blue-600 {
+  color: #ffffff;
+}
+
+/* WhatsApp Chat Wallpaper in light mode: #efeae2 */
+html[data-mode="light"] .bg-\[\url\(\'\/inbox-doodle\.svg\'\)\],
+html.light .bg-\[\url\(\'\/inbox-doodle\.svg\'\)\] {
+  background-color: #efeae2 !important;
+}
+
+/* Light mode hover states */
+html[data-mode="light"] .hover\:bg-slate-800:hover,
+html.light .hover\:bg-slate-800:hover,
+html[data-mode="light"] .hover\:bg-slate-900:hover,
+html.light .hover\:bg-slate-900:hover,
+html[data-mode="light"] .hover\:bg-slate-700:hover,
+html.light .hover\:bg-slate-700:hover {
+  background-color: #f1f5f9 !important;
+}
+
+html[data-mode="light"] .hover\:text-white:hover,
+html.light .hover\:text-white:hover {
+  color: #111b21 !important;
+}
+
+/* Light mode card elevation */
+html[data-mode="light"] .rounded-xl.border,
+html.light .rounded-xl.border,
+html[data-mode="light"] .rounded-lg.border,
+html.light .rounded-lg.border {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+}
