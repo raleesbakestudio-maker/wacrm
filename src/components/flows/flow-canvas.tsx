@@ -159,7 +159,12 @@ function FlowNodeCard({ data, selected }: NodeProps) {
       <div className="mt-1 truncate font-mono text-[11px] text-slate-300">
         {node.node_key}
       </div>
-      {node.node_type === "send_message" && summary ? (
+      {node.node_type === "send_media" && (node.config as { media_type?: string })?.media_type === "audio" && summary ? (
+        <div className="mt-2 flex items-center gap-1.5 rounded-md border border-cyan-500/25 bg-cyan-950/40 px-2.5 py-1.5 text-[11px] leading-snug text-cyan-200 shadow-sm">
+          <span className="text-sm">🎙️</span>
+          <span className="truncate">{summary}</span>
+        </div>
+      ) : node.node_type === "send_message" && summary ? (
         <div className="mt-2 rounded-md border border-emerald-500/25 bg-[#005c4b]/30 px-2.5 py-1.5 text-[11px] leading-snug text-emerald-100 shadow-sm">
           <div className="line-clamp-3 whitespace-pre-wrap font-sans">
             {summary}

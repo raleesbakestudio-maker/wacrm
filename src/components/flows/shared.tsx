@@ -200,9 +200,12 @@ export function summarizeNode(node: BuilderNode): string | null {
       const filename = typeof cfg.filename === "string" ? cfg.filename : "";
       const url = typeof cfg.media_url === "string" ? cfg.media_url : "";
       const caption = typeof cfg.caption === "string" ? cfg.caption : "";
-      const label = mediaType
-        ? mediaType.charAt(0).toUpperCase() + mediaType.slice(1)
-        : "Media";
+      const label =
+        mediaType === "audio"
+          ? "🎙️ Voice"
+          : mediaType
+            ? mediaType.charAt(0).toUpperCase() + mediaType.slice(1)
+            : "Media";
       if (!url) return `${label} (no file uploaded)`;
       const name = filename || url.split("/").pop() || "file";
       return caption

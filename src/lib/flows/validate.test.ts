@@ -442,6 +442,18 @@ describe("validateFlowForActivation — send_media", () => {
     expect(issues).toEqual([]);
   });
 
+  it("passes on a send_media node with audio / voice", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({
+        media_type: "audio",
+        media_url: "https://cdn.example/voice-note.mp3",
+        next_node_key: "h",
+      }),
+    );
+    expect(issues).toEqual([]);
+  });
+
   it("flags missing media_url", () => {
     const issues = validateFlowForActivation(
       baseFlow,

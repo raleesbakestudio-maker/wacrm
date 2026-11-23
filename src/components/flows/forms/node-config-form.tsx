@@ -1165,20 +1165,21 @@ function useUserTags(): UserTag[] {
 // ============================================================
 
 interface SendMediaCfg {
-  media_type?: "image" | "video" | "document";
+  media_type?: "image" | "video" | "document" | "audio";
   media_url?: string;
   caption?: string;
   filename?: string;
   next_node_key?: string;
 }
 
-// Mirrors the bucket's allowed_mime_types from migration 016. Kept in
+// Mirrors the bucket's allowed_mime_types from migration 016 + 022. Kept in
 // sync with the storage policy so the picker rejects unsupported files
 // before they hit the network rather than failing with a confusing
 // Supabase RLS / mime-type error.
 const MEDIA_ACCEPT: Record<NonNullable<SendMediaCfg["media_type"]>, string> = {
   image: "image/png,image/jpeg,image/webp",
   video: "video/mp4,video/3gpp",
+  audio: "audio/mpeg,audio/mp4,audio/ogg,audio/aac,audio/wav,audio/x-m4a,audio/*",
   document:
     "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain",
 };
@@ -1304,6 +1305,7 @@ function SendMediaForm({
           <SelectContent>
             <SelectItem value="image">Image (PNG, JPEG, WebP)</SelectItem>
             <SelectItem value="video">Video (MP4, 3GP)</SelectItem>
+            <SelectItem value="audio">Voice / Audio (MP3, OGG, M4A, WAV)</SelectItem>
             <SelectItem value="document">
               Document (PDF, Word, Excel, PowerPoint, TXT)
             </SelectItem>
@@ -1369,12 +1371,23 @@ function SendMediaForm({
         />
       </div>
 
-      <TextRow
-        label="Caption (optional, shown under the media)"
-        value={cfg.caption ?? ""}
-        onChange={(v) => onUpdateConfig({ caption: v })}
-        rows={2}
-      />
+      {mediaType === "audio" && cfg.media_url && (
+        <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-2.5">
+          <label className="mb-1.5 block text-[11px] font-medium text-slate-400">
+            Voice Note Preview:
+          </label>
+          <audio src={cfg.media_url} controls className="h-8 w-full" />
+        </div>
+      )}
+
+      {mediaType !== "audio" && (
+        <TextRow
+          label="Caption (optional, shown under the media)"
+          value={cfg.caption ?? ""}
+          onChange={(v) => onUpdateConfig({ caption: v })}
+          rows={2}
+        />
+      )}
 
       {isDocument && (
         <div>
