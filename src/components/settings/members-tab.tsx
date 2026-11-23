@@ -56,7 +56,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RequireRole } from '@/components/auth/require-role';
 import { useAuth } from '@/hooks/use-auth';
 import type { AccountRole } from '@/lib/auth/roles';
 import { InviteMemberDialog } from './invite-member-dialog';
@@ -139,11 +138,13 @@ function fmtExpiresIn(iso: string): string {
 }
 
 export function MembersTab() {
-  const { user, canManageMembers } = useAuth();
+  const { user, canManageMembers, isOwner, isAdmin } = useAuth();
+  const canManage = canManageMembers || isOwner || isAdmin;
 
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [removingMember, setRemovingMember] = useState<Member | null>(null);
@@ -152,21 +153,24 @@ export function MembersTab() {
   );
 
   const loadEverything = useCallback(async () => {
+    setLoadError(null);
     try {
       const [mres, ires] = await Promise.all([
         fetch('/api/account/members', { cache: 'no-store' }),
-        canManageMembers
+        canManage
           ? fetch('/api/account/invitations', { cache: 'no-store' })
           : Promise.resolve(null),
       ]);
 
       if (!mres.ok) {
         const payload = await mres.json().catch(() => ({}));
-        toast.error(payload.error || 'Failed to load members');
+        const msg = payload.error || 'Failed to load members';
+        setLoadError(msg);
+        toast.error(msg);
         return;
       }
       const mdata = (await mres.json()) as { members: Member[] };
-      setMembers(mdata.members);
+      setMembers(mdata.members || []);
 
       if (ires) {
         if (!ires.ok) {
@@ -175,17 +179,18 @@ export function MembersTab() {
           return;
         }
         const idata = (await ires.json()) as { invitations: Invitation[] };
-        setInvitations(idata.invitations);
+        setInvitations(idata.invitations || []);
       } else {
         setInvitations([]);
       }
     } catch (err) {
       console.error('[MembersTab] load error:', err);
+      setLoadError('Could not reach the server');
       toast.error('Could not reach the server');
     } finally {
       setLoading(false);
     }
-  }, [canManageMembers]);
+  }, [canManage]);
 
   useEffect(() => {
     void loadEverything();
@@ -285,8 +290,9 @@ export function MembersTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-primary" />
+      <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+        <Loader2 className="size-6 animate-spin text-primary mb-3" />
+        <p className="text-sm">Loading team members...</p>
       </div>
     );
   }
@@ -302,7 +308,7 @@ export function MembersTab() {
             teammate can do.
           </p>
         </div>
-        <RequireRole min="admin">
+        {canManage && (
           <Button
             onClick={() => setInviteOpen(true)}
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
@@ -310,14 +316,44 @@ export function MembersTab() {
             <Plus className="size-4" />
             Invite member
           </Button>
-        </RequireRole>
+        )}
       </div>
 
       {/* Roster */}
       <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
         <CardContent className="p-0">
-          <ul className="divide-y divide-slate-800">
-            {members.map((member) => {
+          {members.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+              <UsersRound className="size-10 text-slate-600 mb-3" />
+              <p className="text-base font-medium text-white">
+                {loadError ? 'Could not load members' : 'No team members yet'}
+              </p>
+              <p className="mt-1 text-xs text-slate-400 max-w-sm">
+                {loadError
+                  ? 'There was a problem reaching the server. Please try refreshing.'
+                  : 'Add staff members and assign them roles (Agent, Admin) to chat with students and manage contacts.'}
+              </p>
+              {loadError ? (
+                <Button
+                  onClick={() => void loadEverything()}
+                  variant="outline"
+                  className="mt-4 border-slate-700 text-slate-300 hover:bg-slate-800"
+                >
+                  Retry
+                </Button>
+              ) : canManage ? (
+                <Button
+                  onClick={() => setInviteOpen(true)}
+                  className="mt-4 bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
+                  <Plus className="size-4 mr-1.5" />
+                  Invite staff member
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-800">
+              {members.map((member) => {
               const roleMeta = ROLE_CHIP[member.role];
               const RoleIcon = roleMeta.icon;
               const isSelf = member.user_id === user?.id;
@@ -439,11 +475,12 @@ export function MembersTab() {
               );
             })}
           </ul>
+          )}
         </CardContent>
       </Card>
 
       {/* Pending invitations — admin+ only */}
-      <RequireRole min="admin">
+      {canManage && (
         <div>
           <div className="mb-2 flex items-center gap-2">
             <UsersRound className="size-4 text-slate-400" />
@@ -530,7 +567,7 @@ export function MembersTab() {
             </Card>
           )}
         </div>
-      </RequireRole>
+      )}
 
       <InviteMemberDialog
         open={inviteOpen}

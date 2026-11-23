@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import {
   Settings,
   MessageSquare,
@@ -21,11 +22,11 @@ import { MembersTab } from '@/components/settings/members-tab';
 
 const TAB_VALUES = [
   'profile',
+  'members',
   'whatsapp',
   'templates',
   'tags',
   'appearance',
-  'members',
 ] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
@@ -37,12 +38,28 @@ export default function SettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // The URL is the single source of truth for the active tab — no
-  // local state, no sync effect.
   const queryTab = searchParams.get('tab');
-  const tab: TabValue = isTabValue(queryTab) ? queryTab : 'profile';
+  const [tab, setTab] = useState<TabValue>(() =>
+    isTabValue(queryTab) ? queryTab : 'profile'
+  );
+
+  // Sync if URL query changes externally (e.g. from sidebar menu navigation)
+  useEffect(() => {
+    if (isTabValue(queryTab) && queryTab !== tab) {
+      setTab(queryTab);
+    }
+  }, [queryTab, tab]);
+
+  // Keep active tab visible in horizontal scroll on mobile
+  useEffect(() => {
+    const el = document.querySelector(`[data-slot="tabs-trigger"][data-value="${tab}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [tab]);
 
   const onChange = (next: TabValue) => {
+    setTab(next);
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', next);
     router.replace(`/settings?${params.toString()}`, { scroll: false });
@@ -53,8 +70,7 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">Settings</h1>
         <p className="text-sm text-slate-400 mt-1">
-          Manage your profile, WhatsApp® integration, message templates, and
-          tags.
+          Manage your profile, team & staff members, WhatsApp® integration, message templates, and tags.
         </p>
       </div>
 
@@ -67,6 +83,13 @@ export default function SettingsPage() {
             >
               <User className="size-4" />
               Profile
+            </TabsTrigger>
+            <TabsTrigger
+              value="members"
+              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            >
+              <UsersRound className="size-4" />
+              Members
             </TabsTrigger>
             <TabsTrigger
               value="whatsapp"
@@ -96,13 +119,6 @@ export default function SettingsPage() {
               <Palette className="size-4" />
               Appearance
             </TabsTrigger>
-            <TabsTrigger
-              value="members"
-              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-            >
-              <UsersRound className="size-4" />
-              Members
-            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -110,6 +126,10 @@ export default function SettingsPage() {
           <ProfileForm />
           <PasswordForm />
           <SessionsCard />
+        </TabsContent>
+
+        <TabsContent value="members">
+          <MembersTab />
         </TabsContent>
 
         <TabsContent value="whatsapp">
@@ -126,10 +146,6 @@ export default function SettingsPage() {
 
         <TabsContent value="appearance">
           <AppearancePanel />
-        </TabsContent>
-
-        <TabsContent value="members">
-          <MembersTab />
         </TabsContent>
       </Tabs>
     </div>

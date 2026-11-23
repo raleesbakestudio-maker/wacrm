@@ -151,7 +151,10 @@ export async function getCurrentAccount(): Promise<AccountContext> {
     userId: user.id,
     accountId: data.account_id,
     role: data.account_role,
-    account: { id: accountRow.id, name: accountRow.name },
+    account: {
+      id: accountRow?.id ?? data.account_id,
+      name: accountRow?.name ?? "RaleesBake Studio",
+    },
   };
 }
 
