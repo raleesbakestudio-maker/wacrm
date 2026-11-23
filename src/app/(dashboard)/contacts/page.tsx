@@ -411,8 +411,10 @@ export default function ContactsPage() {
       {/* Top Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-white">Contacts</h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            Contacts
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-0.5">
             Manage your contact list. {totalCount > 0 && `${totalCount} total contacts.`}
           </p>
         </div>
@@ -423,15 +425,15 @@ export default function ContactsPage() {
             size="sm"
             onClick={handleExportCSV}
             disabled={exporting || loading || totalCount === 0}
-            className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs sm:text-sm h-8 sm:h-9"
+            className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm h-8 sm:h-9 rounded-xl shadow-xs"
             title="Export contacts as CSV"
           >
             {exporting ? (
-              <Loader2 className="size-3.5 sm:size-4 animate-spin text-primary" />
+              <Loader2 className="size-3.5 sm:size-4 animate-spin text-emerald-600 dark:text-primary" />
             ) : (
-              <Download className="size-3.5 sm:size-4 text-emerald-400" />
+              <Download className="size-3.5 sm:size-4 text-emerald-600 dark:text-emerald-400" />
             )}
-            <span className="ml-1.5">Export</span>
+            <span className="ml-1.5 font-medium">Export</span>
           </Button>
 
           {/* Tags Manager Button */}
@@ -439,10 +441,10 @@ export default function ContactsPage() {
             variant="outline"
             size="sm"
             onClick={() => setTagManagerOpen(true)}
-            className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs sm:text-sm h-8 sm:h-9"
+            className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm h-8 sm:h-9 rounded-xl shadow-xs"
           >
-            <TagIcon className="size-3.5 sm:size-4" />
-            <span className="ml-1.5 hidden xs:inline">Tags</span>
+            <TagIcon className="size-3.5 sm:size-4 text-slate-500 dark:text-slate-400" />
+            <span className="ml-1.5 hidden xs:inline font-medium">Tags</span>
           </Button>
 
           {/* Import Contacts */}
@@ -452,10 +454,10 @@ export default function ContactsPage() {
             canAct={canEdit}
             gateReason="add or import contacts"
             onClick={() => setImportOpen(true)}
-            className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs sm:text-sm h-8 sm:h-9"
+            className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm h-8 sm:h-9 rounded-xl shadow-xs"
           >
-            <Upload className="size-3.5 sm:size-4" />
-            <span className="ml-1.5 hidden xs:inline">Import</span>
+            <Upload className="size-3.5 sm:size-4 text-slate-500 dark:text-slate-400" />
+            <span className="ml-1.5 hidden xs:inline font-medium">Import</span>
           </GatedButton>
 
           {/* Add Contact */}
@@ -464,7 +466,7 @@ export default function ContactsPage() {
             canAct={canEdit}
             gateReason="add or import contacts"
             onClick={openAddForm}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs sm:text-sm h-8 sm:h-9"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs sm:text-sm h-8 sm:h-9 rounded-xl shadow-xs dark:bg-primary dark:hover:bg-primary/90 dark:text-primary-foreground"
           >
             <Plus className="size-3.5 sm:size-4" />
             <span className="ml-1">Add Contact</span>
@@ -476,7 +478,7 @@ export default function ContactsPage() {
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
         {/* Search */}
         <div className="relative w-full sm:max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-slate-400 dark:text-slate-500" />
           <Input
             value={search}
             onChange={(e) => {
@@ -484,7 +486,7 @@ export default function ContactsPage() {
               setPage(0);
             }}
             placeholder="Search name, phone, email..."
-            className="pl-8 pr-8 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 text-xs sm:text-sm h-9"
+            className="pl-8 pr-8 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs sm:text-sm h-9 rounded-xl shadow-xs"
           />
           {search && (
             <button
@@ -493,7 +495,7 @@ export default function ContactsPage() {
                 setSearch('');
                 setPage(0);
               }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white"
             >
               <X className="size-3.5" />
             </button>
@@ -506,29 +508,29 @@ export default function ContactsPage() {
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors h-9',
+                'inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-medium transition-colors h-9 shadow-xs',
                 selectedTagId !== 'all'
-                  ? 'border-primary/50 bg-primary/10 text-primary'
-                  : 'border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800'
+                  ? 'border-emerald-500/50 bg-emerald-50 dark:bg-primary/10 text-emerald-700 dark:text-primary font-semibold'
+                  : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
               )}
             >
               <TagIcon className="size-3.5" />
               <span className="truncate max-w-[120px]">{selectedTagName}</span>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-slate-900 border-slate-700 max-h-60 overflow-y-auto w-48">
+            <DropdownMenuContent align="end" className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 max-h-60 overflow-y-auto w-48 shadow-lg">
               <DropdownMenuItem
                 onClick={() => {
                   setSelectedTagId('all');
                   setPage(0);
                 }}
-                className={cn('text-xs', selectedTagId === 'all' && 'text-primary font-medium')}
+                className={cn('text-xs', selectedTagId === 'all' && 'text-emerald-600 dark:text-primary font-semibold')}
               >
                 All Tags
                 {selectedTagId === 'all' && <Check className="ml-auto size-3" />}
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-slate-800" />
+              <DropdownMenuSeparator className="bg-slate-100 dark:bg-slate-800" />
               {allTagList.length === 0 ? (
-                <div className="p-2 text-xs text-slate-500 text-center">No tags created</div>
+                <div className="p-2 text-xs text-slate-400 text-center">No tags created</div>
               ) : (
                 allTagList.map((tag) => (
                   <DropdownMenuItem
@@ -544,7 +546,7 @@ export default function ContactsPage() {
                       style={{ backgroundColor: tag.color }}
                     />
                     <span className="truncate flex-1">{tag.name}</span>
-                    {selectedTagId === tag.id && <Check className="ml-auto size-3 text-primary" />}
+                    {selectedTagId === tag.id && <Check className="ml-auto size-3 text-emerald-600 dark:text-primary" />}
                   </DropdownMenuItem>
                 ))
               )}
@@ -555,10 +557,10 @@ export default function ContactsPage() {
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors h-9',
+                'inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-medium transition-colors h-9 shadow-xs',
                 attributeFilter !== 'all'
-                  ? 'border-primary/50 bg-primary/10 text-primary'
-                  : 'border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800'
+                  ? 'border-emerald-500/50 bg-emerald-50 dark:bg-primary/10 text-emerald-700 dark:text-primary font-semibold'
+                  : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
               )}
             >
               <Filter className="size-3.5" />
@@ -574,13 +576,13 @@ export default function ContactsPage() {
                   : 'Untagged'}
               </span>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-slate-900 border-slate-700 w-44">
+            <DropdownMenuContent align="end" className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 w-44 shadow-lg">
               <DropdownMenuItem
                 onClick={() => {
                   setAttributeFilter('all');
                   setPage(0);
                 }}
-                className={cn('text-xs', attributeFilter === 'all' && 'text-primary font-medium')}
+                className={cn('text-xs', attributeFilter === 'all' && 'text-emerald-600 dark:text-primary font-semibold')}
               >
                 All Contacts
               </DropdownMenuItem>
@@ -589,7 +591,7 @@ export default function ContactsPage() {
                   setAttributeFilter('has_email');
                   setPage(0);
                 }}
-                className={cn('text-xs', attributeFilter === 'has_email' && 'text-primary font-medium')}
+                className={cn('text-xs', attributeFilter === 'has_email' && 'text-emerald-600 dark:text-primary font-semibold')}
               >
                 Has Email
               </DropdownMenuItem>
@@ -598,7 +600,7 @@ export default function ContactsPage() {
                   setAttributeFilter('has_company');
                   setPage(0);
                 }}
-                className={cn('text-xs', attributeFilter === 'has_company' && 'text-primary font-medium')}
+                className={cn('text-xs', attributeFilter === 'has_company' && 'text-emerald-600 dark:text-primary font-semibold')}
               >
                 Has Company
               </DropdownMenuItem>
@@ -607,7 +609,7 @@ export default function ContactsPage() {
                   setAttributeFilter('has_tags');
                   setPage(0);
                 }}
-                className={cn('text-xs', attributeFilter === 'has_tags' && 'text-primary font-medium')}
+                className={cn('text-xs', attributeFilter === 'has_tags' && 'text-emerald-600 dark:text-primary font-semibold')}
               >
                 Tagged Only
               </DropdownMenuItem>
@@ -616,7 +618,7 @@ export default function ContactsPage() {
                   setAttributeFilter('untagged');
                   setPage(0);
                 }}
-                className={cn('text-xs', attributeFilter === 'untagged' && 'text-primary font-medium')}
+                className={cn('text-xs', attributeFilter === 'untagged' && 'text-emerald-600 dark:text-primary font-semibold')}
               >
                 Untagged Only
               </DropdownMenuItem>
@@ -625,8 +627,8 @@ export default function ContactsPage() {
 
           {/* Sort Dropdown */}
           <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800 h-9">
-              <ArrowUpDown className="size-3.5" />
+            <DropdownMenuTrigger className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 h-9 shadow-xs">
+              <ArrowUpDown className="size-3.5 text-slate-500" />
               <span>
                 {sortOption === 'newest'
                   ? 'Newest'
@@ -635,13 +637,13 @@ export default function ContactsPage() {
                   : 'Name A-Z'}
               </span>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-slate-900 border-slate-700 w-36">
+            <DropdownMenuContent align="end" className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 w-36 shadow-lg">
               <DropdownMenuItem
                 onClick={() => {
                   setSortOption('newest');
                   setPage(0);
                 }}
-                className={cn('text-xs', sortOption === 'newest' && 'text-primary font-medium')}
+                className={cn('text-xs', sortOption === 'newest' && 'text-emerald-600 dark:text-primary font-semibold')}
               >
                 Newest First
               </DropdownMenuItem>
@@ -650,7 +652,7 @@ export default function ContactsPage() {
                   setSortOption('oldest');
                   setPage(0);
                 }}
-                className={cn('text-xs', sortOption === 'oldest' && 'text-primary font-medium')}
+                className={cn('text-xs', sortOption === 'oldest' && 'text-emerald-600 dark:text-primary font-semibold')}
               >
                 Oldest First
               </DropdownMenuItem>
@@ -659,7 +661,7 @@ export default function ContactsPage() {
                   setSortOption('name_asc');
                   setPage(0);
                 }}
-                className={cn('text-xs', sortOption === 'name_asc' && 'text-primary font-medium')}
+                className={cn('text-xs', sortOption === 'name_asc' && 'text-emerald-600 dark:text-primary font-semibold')}
               >
                 Name A-Z
               </DropdownMenuItem>
@@ -672,7 +674,7 @@ export default function ContactsPage() {
               variant="ghost"
               size="sm"
               onClick={resetFilters}
-              className="text-xs text-slate-400 hover:text-white h-9 px-2"
+              className="text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white h-9 px-2"
               title="Reset all filters"
             >
               <X className="size-3.5 mr-1" />
@@ -683,35 +685,35 @@ export default function ContactsPage() {
       </div>
 
       {/* DESKTOP TABLE VIEW (md+) */}
-      <div className="hidden md:block rounded-xl border border-slate-800 overflow-hidden bg-slate-900/40">
+      <div className="hidden md:block rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
         <Table>
           <TableHeader>
-            <TableRow className="border-slate-800 hover:bg-transparent">
-              <TableHead className="text-slate-400">Name</TableHead>
-              <TableHead className="text-slate-400">Phone</TableHead>
-              <TableHead className="text-slate-400">Email</TableHead>
-              <TableHead className="text-slate-400 hidden lg:table-cell">Company</TableHead>
-              <TableHead className="text-slate-400">Tags</TableHead>
-              <TableHead className="text-slate-400 hidden lg:table-cell">Created</TableHead>
-              <TableHead className="text-slate-400 w-12" />
+            <TableRow className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/60 hover:bg-slate-50/80 dark:hover:bg-slate-950/60">
+              <TableHead className="text-slate-500 dark:text-slate-400 font-semibold text-[11px] uppercase tracking-wider py-3.5">Name</TableHead>
+              <TableHead className="text-slate-500 dark:text-slate-400 font-semibold text-[11px] uppercase tracking-wider py-3.5">Phone</TableHead>
+              <TableHead className="text-slate-500 dark:text-slate-400 font-semibold text-[11px] uppercase tracking-wider py-3.5">Email</TableHead>
+              <TableHead className="text-slate-500 dark:text-slate-400 font-semibold text-[11px] uppercase tracking-wider py-3.5 hidden lg:table-cell">Company</TableHead>
+              <TableHead className="text-slate-500 dark:text-slate-400 font-semibold text-[11px] uppercase tracking-wider py-3.5">Tags</TableHead>
+              <TableHead className="text-slate-500 dark:text-slate-400 font-semibold text-[11px] uppercase tracking-wider py-3.5 hidden lg:table-cell">Created</TableHead>
+              <TableHead className="text-slate-500 dark:text-slate-400 font-semibold text-[11px] uppercase tracking-wider py-3.5 w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow className="border-slate-800">
-                <TableCell colSpan={7} className="text-center py-12">
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="size-6 animate-spin text-primary" />
-                    <p className="text-sm text-slate-500">Loading contacts...</p>
+              <TableRow className="border-slate-100 dark:border-slate-800">
+                <TableCell colSpan={7} className="text-center py-14">
+                  <div className="flex flex-col items-center gap-2.5">
+                    <Loader2 className="size-6 animate-spin text-emerald-600 dark:text-primary" />
+                    <p className="text-sm text-slate-500 font-medium">Loading contacts...</p>
                   </div>
                 </TableCell>
               </TableRow>
             ) : contacts.length === 0 ? (
-              <TableRow className="border-slate-800">
-                <TableCell colSpan={7} className="text-center py-12">
+              <TableRow className="border-slate-100 dark:border-slate-800">
+                <TableCell colSpan={7} className="text-center py-14">
                   <div className="flex flex-col items-center gap-2">
-                    <Users className="size-8 text-slate-600" />
-                    <p className="text-sm text-slate-400">
+                    <Users className="size-8 text-slate-400 dark:text-slate-600 mb-1" />
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
                       {hasActiveFilters
                         ? 'No contacts match your filters.'
                         : 'No contacts yet.'}
@@ -721,7 +723,7 @@ export default function ContactsPage() {
                         variant="outline"
                         size="sm"
                         onClick={resetFilters}
-                        className="mt-2 border-slate-700 text-slate-300 hover:bg-slate-800 text-xs"
+                        className="mt-2.5 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs rounded-xl"
                       >
                         Clear Filters
                       </Button>
@@ -730,9 +732,9 @@ export default function ContactsPage() {
                         variant="outline"
                         size="sm"
                         onClick={openAddForm}
-                        className="mt-2 border-slate-700 text-slate-300 hover:bg-slate-800"
+                        className="mt-2.5 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs rounded-xl"
                       >
-                        <Plus className="size-3.5" />
+                        <Plus className="size-3.5 mr-1" />
                         Add your first contact
                       </Button>
                     )}
@@ -743,27 +745,27 @@ export default function ContactsPage() {
               contacts.map((contact) => (
                 <TableRow
                   key={contact.id}
-                  className="border-slate-800 hover:bg-slate-900/70 cursor-pointer transition-colors"
+                  className="border-b border-slate-100 dark:border-slate-800/80 hover:bg-emerald-50/40 dark:hover:bg-slate-800/50 cursor-pointer transition-colors last:border-b-0"
                   onClick={() => openDetail(contact.id)}
                 >
-                  <TableCell className="text-white font-medium">
+                  <TableCell className="font-medium">
                     <div className="flex items-center gap-2.5">
-                      <div className="flex size-7 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold text-primary shrink-0">
+                      <div className="flex size-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 text-xs font-bold shrink-0">
                         {(contact.name || contact.phone || 'U').charAt(0).toUpperCase()}
                       </div>
-                      <span className="truncate max-w-[180px]">
-                        {contact.name || <span className="text-slate-500 italic">Unnamed</span>}
+                      <span className="truncate max-w-[180px] text-slate-900 dark:text-white font-semibold text-sm">
+                        {contact.name || <span className="text-slate-400 dark:text-slate-500 italic font-normal">Unnamed</span>}
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-slate-300 font-mono text-xs">
+                  <TableCell className="text-slate-700 dark:text-slate-300 font-mono text-xs">
                     {contact.phone}
                   </TableCell>
-                  <TableCell className="text-slate-400 text-sm">
-                    {contact.email || <span className="text-slate-600">-</span>}
+                  <TableCell className="text-slate-600 dark:text-slate-400 text-xs">
+                    {contact.email || <span className="text-slate-300 dark:text-slate-600">-</span>}
                   </TableCell>
-                  <TableCell className="text-slate-400 hidden lg:table-cell text-sm">
-                    {contact.company || <span className="text-slate-600">-</span>}
+                  <TableCell className="text-slate-600 dark:text-slate-400 hidden lg:table-cell text-xs">
+                    {contact.company || <span className="text-slate-300 dark:text-slate-600">-</span>}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1 max-w-[200px]">
@@ -771,17 +773,17 @@ export default function ContactsPage() {
                         contact.tags.slice(0, 3).map((tag) => (
                           <span
                             key={tag.id}
-                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-                            style={{
-                              backgroundColor: tag.color + '20',
-                              color: tag.color,
-                            }}
+                            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border border-slate-200 dark:border-slate-700/60 bg-slate-100/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 shadow-2xs"
                           >
+                            <span
+                              className="size-1.5 rounded-full shrink-0"
+                              style={{ backgroundColor: tag.color }}
+                            />
                             {tag.name}
                           </span>
                         ))
                       ) : (
-                        <span className="text-slate-600 text-xs">-</span>
+                        <span className="text-slate-300 dark:text-slate-600 text-xs">-</span>
                       )}
                       {contact.tags && contact.tags.length > 3 && (
                         <span className="text-[10px] text-slate-500 self-center">
@@ -790,7 +792,7 @@ export default function ContactsPage() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-slate-500 text-xs hidden lg:table-cell">
+                  <TableCell className="text-slate-500 dark:text-slate-500 text-xs hidden lg:table-cell font-medium">
                     {new Date(contact.created_at).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
@@ -804,25 +806,25 @@ export default function ContactsPage() {
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            className="text-slate-400 hover:text-white"
+                            className="text-slate-400 hover:text-slate-800 dark:hover:text-white"
                             onClick={(e) => e.stopPropagation()}
                           />
                         }
                       >
                         <MoreHorizontal className="size-4" />
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-slate-900 border-slate-700">
+                      <DropdownMenuContent align="end" className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-lg">
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
                             openEditForm(contact);
                           }}
-                          className="text-slate-300 focus:bg-slate-800 focus:text-white text-xs"
+                          className="text-slate-700 dark:text-slate-200 focus:bg-slate-100 dark:focus:bg-slate-800 text-xs"
                         >
-                          <Pencil className="size-3.5 mr-2" />
+                          <Pencil className="size-3.5 mr-2 text-slate-500" />
                           Edit
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-slate-700" />
+                        <DropdownMenuSeparator className="bg-slate-100 dark:bg-slate-800" />
                         <DropdownMenuItem
                           variant="destructive"
                           onClick={(e) => {
@@ -847,14 +849,14 @@ export default function ContactsPage() {
       {/* MOBILE CARD VIEW (< md) */}
       <div className="md:hidden space-y-2.5">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-12 rounded-xl border border-slate-800 bg-slate-900/40">
-            <Loader2 className="size-6 animate-spin text-primary" />
-            <p className="text-sm text-slate-500 mt-2">Loading contacts...</p>
+          <div className="flex flex-col items-center justify-center py-12 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+            <Loader2 className="size-6 animate-spin text-emerald-600 dark:text-primary" />
+            <p className="text-sm text-slate-500 font-medium mt-2">Loading contacts...</p>
           </div>
         ) : contacts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 rounded-xl border border-slate-800 bg-slate-900/40 text-center px-4">
-            <Users className="size-8 text-slate-600 mb-2" />
-            <p className="text-sm text-slate-400">
+          <div className="flex flex-col items-center justify-center py-10 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs text-center px-4">
+            <Users className="size-8 text-slate-400 dark:text-slate-600 mb-2" />
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
               {hasActiveFilters
                 ? 'No contacts match your filters.'
                 : 'No contacts yet.'}
@@ -864,7 +866,7 @@ export default function ContactsPage() {
                 variant="outline"
                 size="sm"
                 onClick={resetFilters}
-                className="mt-3 border-slate-700 text-slate-300 hover:bg-slate-800 text-xs"
+                className="mt-3 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs rounded-xl"
               >
                 Clear Filters
               </Button>
@@ -873,7 +875,7 @@ export default function ContactsPage() {
                 variant="outline"
                 size="sm"
                 onClick={openAddForm}
-                className="mt-3 border-slate-700 text-slate-300 hover:bg-slate-800 text-xs"
+                className="mt-3 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs rounded-xl"
               >
                 <Plus className="size-3.5 mr-1" />
                 Add contact
@@ -885,19 +887,19 @@ export default function ContactsPage() {
             <div
               key={contact.id}
               onClick={() => openDetail(contact.id)}
-              className="rounded-xl border border-slate-800 bg-slate-900/70 p-3 space-y-2.5 transition-all active:scale-[0.99] cursor-pointer"
+              className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 space-y-2.5 shadow-xs transition-all active:scale-[0.99] cursor-pointer"
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold text-primary">
+                  <div className="flex size-9.5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 text-xs font-bold">
                     {(contact.name || contact.phone || 'U').charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-white">
-                      {contact.name || <span className="text-slate-500 italic">Unnamed</span>}
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-white leading-tight">
+                      {contact.name || <span className="text-slate-400 dark:text-slate-500 italic font-normal">Unnamed</span>}
                     </p>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono mt-0.5">
-                      <Phone className="size-3 text-slate-500 shrink-0" />
+                    <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-mono mt-0.5">
+                      <Phone className="size-3 text-emerald-600 dark:text-slate-400 shrink-0" />
                       <span className="truncate">{contact.phone}</span>
                     </div>
                   </div>
@@ -910,25 +912,25 @@ export default function ContactsPage() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        className="text-slate-400 hover:text-white shrink-0 size-8"
+                        className="text-slate-400 hover:text-slate-800 dark:hover:text-white shrink-0 size-8"
                         onClick={(e) => e.stopPropagation()}
                       />
                     }
                   >
                     <MoreHorizontal className="size-4" />
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-slate-900 border-slate-700">
+                  <DropdownMenuContent align="end" className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-lg">
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation();
                         openEditForm(contact);
                       }}
-                      className="text-slate-300 focus:bg-slate-800 focus:text-white text-xs"
+                      className="text-slate-700 dark:text-slate-200 focus:bg-slate-100 dark:focus:bg-slate-800 text-xs"
                     >
-                      <Pencil className="size-3.5 mr-2" />
+                      <Pencil className="size-3.5 mr-2 text-slate-500" />
                       Edit
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator className="bg-slate-700" />
+                    <DropdownMenuSeparator className="bg-slate-100 dark:bg-slate-800" />
                     <DropdownMenuItem
                       variant="destructive"
                       onClick={(e) => {
@@ -950,12 +952,12 @@ export default function ContactsPage() {
                   {contact.tags.slice(0, 3).map((tag) => (
                     <span
                       key={tag.id}
-                      className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-                      style={{
-                        backgroundColor: tag.color + '20',
-                        color: tag.color,
-                      }}
+                      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-medium border border-slate-200 dark:border-slate-700/60 bg-slate-100/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200"
                     >
+                      <span
+                        className="size-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: tag.color }}
+                      />
                       {tag.name}
                     </span>
                   ))}
@@ -969,16 +971,16 @@ export default function ContactsPage() {
 
               {/* Details Row: Email and Company */}
               {(contact.email || contact.company) && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 pt-1.5 border-t border-slate-800/80">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
                   {contact.email && (
                     <div className="flex items-center gap-1 truncate max-w-[180px]">
-                      <Mail className="size-3 text-slate-500 shrink-0" />
+                      <Mail className="size-3 text-slate-400 shrink-0" />
                       <span className="truncate">{contact.email}</span>
                     </div>
                   )}
                   {contact.company && (
                     <div className="flex items-center gap-1 truncate max-w-[140px]">
-                      <Building2 className="size-3 text-slate-500 shrink-0" />
+                      <Building2 className="size-3 text-slate-400 shrink-0" />
                       <span className="truncate">{contact.company}</span>
                     </div>
                   )}
@@ -993,20 +995,20 @@ export default function ContactsPage() {
       {totalCount > 0 && (
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between pt-2">
           <div className="flex items-center justify-between sm:justify-start gap-3">
-            <p className="text-xs text-slate-400">
-              Showing <span className="font-medium text-white">{page * pageSize + 1}</span>-
-              <span className="font-medium text-white">
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              Showing <span className="font-semibold text-slate-900 dark:text-white">{page * pageSize + 1}</span>-
+              <span className="font-semibold text-slate-900 dark:text-white">
                 {Math.min((page + 1) * pageSize, totalCount)}
               </span>{' '}
-              of <span className="font-medium text-white">{totalCount}</span>
+              of <span className="font-semibold text-slate-900 dark:text-white">{totalCount}</span>
             </p>
 
             {/* Page Size Selector */}
             <DropdownMenu>
-              <DropdownMenuTrigger className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-white border border-slate-800 rounded px-2 py-0.5">
+              <DropdownMenuTrigger className="inline-flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-0.5 bg-white dark:bg-slate-900 shadow-2xs">
                 <span>{pageSize} / page</span>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="bg-slate-900 border-slate-700 w-24">
+              <DropdownMenuContent align="start" className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 w-24 shadow-lg">
                 {[25, 50, 100].map((sz) => (
                   <DropdownMenuItem
                     key={sz}
@@ -1014,7 +1016,7 @@ export default function ContactsPage() {
                       setPageSize(sz);
                       setPage(0);
                     }}
-                    className={cn('text-xs', pageSize === sz && 'text-primary font-medium')}
+                    className={cn('text-xs', pageSize === sz && 'text-emerald-600 dark:text-primary font-semibold')}
                   >
                     {sz} rows
                   </DropdownMenuItem>
@@ -1030,12 +1032,12 @@ export default function ContactsPage() {
                 size="sm"
                 disabled={!hasPrev}
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-8 px-2.5 disabled:opacity-30"
+                className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs h-8 px-2.5 rounded-xl shadow-xs disabled:opacity-30"
               >
                 <ChevronLeft className="size-3.5 mr-1" />
                 Prev
               </Button>
-              <span className="text-xs text-slate-400 px-2 font-mono">
+              <span className="text-xs text-slate-500 dark:text-slate-400 px-2 font-mono font-medium">
                 {page + 1} / {totalPages}
               </span>
               <Button
@@ -1043,7 +1045,7 @@ export default function ContactsPage() {
                 size="sm"
                 disabled={!hasNext}
                 onClick={() => setPage((p) => p + 1)}
-                className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-8 px-2.5 disabled:opacity-30"
+                className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs h-8 px-2.5 rounded-xl shadow-xs disabled:opacity-30"
               >
                 Next
                 <ChevronRight className="size-3.5 ml-1" />
@@ -1094,10 +1096,10 @@ export default function ContactsPage() {
           }
         }}
       >
-        <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-200 sm:max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-white">Manage Tags</DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogTitle className="text-slate-900 dark:text-white font-bold">Manage Tags</DialogTitle>
+            <DialogDescription className="text-slate-500 dark:text-slate-400">
               Create and manage tags to organize your contacts and broadcast audiences.
             </DialogDescription>
           </DialogHeader>
@@ -1112,22 +1114,22 @@ export default function ContactsPage() {
 
       {/* Delete Confirmation */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-sm">
+        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-200 sm:max-w-sm shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-white">Delete Contact</DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogTitle className="text-slate-900 dark:text-white font-bold">Delete Contact</DialogTitle>
+            <DialogDescription className="text-slate-500 dark:text-slate-400">
               Are you sure you want to delete{' '}
-              <span className="text-slate-200 font-medium">
+              <span className="text-slate-900 dark:text-slate-200 font-semibold">
                 {deleteTarget?.name || deleteTarget?.phone}
               </span>
               ? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="bg-slate-900 border-slate-700">
+          <DialogFooter className="bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 pt-3">
             <Button
               variant="outline"
               onClick={() => setDeleteConfirmOpen(false)}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs"
             >
               Cancel
             </Button>
@@ -1135,8 +1137,9 @@ export default function ContactsPage() {
               variant="destructive"
               onClick={handleDelete}
               disabled={deleting}
+              className="text-xs"
             >
-              {deleting && <Loader2 className="size-4 animate-spin" />}
+              {deleting && <Loader2 className="size-4 animate-spin mr-1" />}
               Delete
             </Button>
           </DialogFooter>
