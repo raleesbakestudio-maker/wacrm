@@ -25,6 +25,7 @@ import {
   Tag as TagIcon,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
+import { formatWhatsAppHeaderStatus } from "@/lib/whatsapp/date-format";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -178,6 +179,15 @@ export function MessageThread({
   }, [isRefreshing, onRefresh]);
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
   const [mobileContactOpen, setMobileContactOpen] = useState(false);
+
+  // WhatsApp-style last message status (e.g. "today at 10:45 AM", "yesterday at 2:30 PM", "2 days ago")
+  const lastActivityStatus = useMemo(() => {
+    const lastDate =
+      messages.length > 0
+        ? messages[messages.length - 1].created_at
+        : conversation?.last_message_at;
+    return formatWhatsAppHeaderStatus(lastDate);
+  }, [messages, conversation?.last_message_at]);
 
   // Profiles are bounded by RLS to rows the current user is allowed to
   // see — today that's just the current user, but the dropdown keeps the
@@ -774,7 +784,16 @@ export function MessageThread({
             </div>
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-xs sm:text-sm font-semibold text-white group-hover:text-primary transition-colors">{displayName}</h2>
-              <p className="truncate text-[10px] sm:text-xs text-slate-400">{contact.phone}</p>
+              <p className="truncate text-[10px] sm:text-xs text-slate-400">
+                {contact.name ? (
+                  <>
+                    <span>{contact.phone}</span>
+                    {lastActivityStatus && <span> • {lastActivityStatus}</span>}
+                  </>
+                ) : (
+                  <span>{lastActivityStatus || contact.phone}</span>
+                )}
+              </p>
             </div>
           </div>
           {/* Session timer badge — hidden on narrow mobile */}

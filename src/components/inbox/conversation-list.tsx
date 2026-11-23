@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus } from "@/types";
 import { Search, ChevronDown } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatWhatsAppListTimestamp } from "@/lib/whatsapp/date-format";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -233,11 +233,7 @@ function ConversationItem({
     onSelect(conversation);
   }, [onSelect, conversation]);
 
-  const timeAgo = conversation.last_message_at
-    ? formatDistanceToNow(new Date(conversation.last_message_at), {
-        addSuffix: false,
-      })
-    : "";
+  const formattedTime = formatWhatsAppListTimestamp(conversation.last_message_at);
 
   return (
     <button
@@ -266,7 +262,16 @@ function ConversationItem({
           <span className="truncate text-sm font-medium text-white">
             {displayName}
           </span>
-          <span className="shrink-0 text-[10px] text-slate-500">{timeAgo}</span>
+          <span
+            className={cn(
+              "shrink-0 text-[10px]",
+              conversation.unread_count > 0
+                ? "font-semibold text-emerald-400"
+                : "text-slate-400 dark:text-slate-500"
+            )}
+          >
+            {formattedTime}
+          </span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p className="truncate text-xs text-slate-400">
