@@ -551,16 +551,27 @@ async function advanceFromNodeKey(
   nodes: Map<string, FlowNodeRow>,
 ): Promise<{ outcome: "advanced" | "completed" | "handed_off" }> {
   let currentKey: string | null = startNodeKey;
-  // Defensive cap — if a flow has a cycle (which the validator
-  // SHOULD catch but doesn't yet in v1), we bail rather than loop.
+  // Guard against cycles/loops in auto-advancing nodes (e.g. send_message pointing back to start)
+  const visited = new Set<string>();
   for (let safety = 0; safety < 64; safety += 1) {
     if (!currentKey) {
-      await logEvent(db, run.id, "error", null, {
-        reason: "next_node_key was null mid-advance",
-      });
-      await endRun(db, run.id, "failed", "missing_next_node");
+      // Natural completion when a terminal or last node has no next_node_key
+      await logEvent(db, run.id, "completed", null);
+      await endRun(db, run.id, "completed", "end_of_flow");
       return { outcome: "completed" };
     }
+    if (visited.has(currentKey)) {
+      console.warn(
+        `[flows] Cycle detected at node ${currentKey} in flow run ${run.id}. Breaking loop.`
+      );
+      await logEvent(db, run.id, "error", currentKey, {
+        reason: "cycle_detected",
+      });
+      await endRun(db, run.id, "completed", "cycle_stopped");
+      return { outcome: "completed" };
+    }
+    visited.add(currentKey);
+
     const node: FlowNodeRow | null = nodes.get(currentKey) ?? null;
     if (!node) {
       await logEvent(db, run.id, "error", currentKey, {
