@@ -31,9 +31,11 @@ import {
   MailX,
   Plus,
   Shield,
+  Sliders,
   Trash2,
   UserCog,
   UserIcon,
+  UserPlus,
   UsersRound,
 } from 'lucide-react';
 
@@ -59,6 +61,9 @@ import {
 import { useAuth } from '@/hooks/use-auth';
 import type { AccountRole } from '@/lib/auth/roles';
 import { InviteMemberDialog } from './invite-member-dialog';
+import { AddStaffDialog } from './add-staff-dialog';
+import { EditPermissionsDialog } from './edit-permissions-dialog';
+import { APP_FEATURES } from '@/lib/auth/features';
 
 interface Member {
   user_id: string;
@@ -66,6 +71,7 @@ interface Member {
   email: string | null;
   avatar_url: string | null;
   role: AccountRole;
+  allowed_features?: string[] | null;
   joined_at: string;
 }
 
@@ -147,6 +153,8 @@ export function MembersTab() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [addStaffOpen, setAddStaffOpen] = useState(false);
+  const [permissionsMember, setPermissionsMember] = useState<Member | null>(null);
   const [removingMember, setRemovingMember] = useState<Member | null>(null);
   const [pendingMemberAction, setPendingMemberAction] = useState<string | null>(
     null,
@@ -309,13 +317,23 @@ export function MembersTab() {
           </p>
         </div>
         {canManage && (
-          <Button
-            onClick={() => setInviteOpen(true)}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            <Plus className="size-4" />
-            Invite member
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setAddStaffOpen(true)}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-9"
+            >
+              <UserPlus className="size-4 mr-1.5" />
+              Add Staff
+            </Button>
+            <Button
+              onClick={() => setInviteOpen(true)}
+              variant="outline"
+              className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-9"
+            >
+              <Plus className="size-4 mr-1.5" />
+              Invite Link
+            </Button>
+          </div>
         )}
       </div>
 
@@ -401,6 +419,29 @@ export function MembersTab() {
                           {member.email}
                         </p>
                       )}
+                      {/* Allowed features badges */}
+                      {member.role !== 'owner' && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          {Array.isArray(member.allowed_features) && member.allowed_features.length > 0 ? (
+                            member.allowed_features.slice(0, 4).map((fid) => {
+                              const feat = APP_FEATURES.find((f) => f.id === fid);
+                              return (
+                                <span
+                                  key={fid}
+                                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700/60"
+                                >
+                                  {feat?.label.split(' ')[0] ?? fid}
+                                </span>
+                              );
+                            })
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-medium">All Features Allowed</span>
+                          )}
+                          {Array.isArray(member.allowed_features) && member.allowed_features.length > 4 && (
+                            <span className="text-[10px] text-slate-400">+{member.allowed_features.length - 4}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -415,6 +456,20 @@ export function MembersTab() {
                       inline. Items align to the start on mobile so the
                       role dropdown lines up under the avatar. */}
                   <div className="flex items-center gap-2 sm:gap-3">
+                    {/* Permissions button. Admin+ only; not on owner row */}
+                    {canManageMembers && !isOwnerRow && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPermissionsMember(member)}
+                        className="h-9 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs px-2.5 inline-flex items-center gap-1 shrink-0"
+                        title="Control allowed features"
+                      >
+                        <Sliders className="size-3.5 text-primary" />
+                        <span className="hidden sm:inline">Permissions</span>
+                      </Button>
+                    )}
+
                     {/* Role display / editor. Inline Select is admin+
                         only AND not allowed on the owner row (owner
                         changes go through transfer, which lands later). */}
@@ -622,6 +677,18 @@ export function MembersTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AddStaffDialog
+        open={addStaffOpen}
+        onOpenChange={setAddStaffOpen}
+        onCreated={() => void loadEverything()}
+      />
+
+      <EditPermissionsDialog
+        open={!!permissionsMember}
+        onOpenChange={(open) => !open && setPermissionsMember(null)}
+        member={permissionsMember}
+        onSaved={() => void loadEverything()}
+      />
     </div>
   );
 }

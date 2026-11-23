@@ -1,4 +1,5 @@
 import type { AccountRole } from "@/lib/auth/roles";
+export type { AccountRole };
 
 export interface Profile {
   id: string;
@@ -64,6 +65,7 @@ export interface AccountMember {
   email: string | null;
   avatar_url: string | null;
   role: AccountRole;
+  allowed_features?: string[] | null;
   joined_at: string;
 }
 

@@ -33,6 +33,7 @@ interface Profile {
   beta_features: string[];
   account_id: string | null;
   account_role: AccountRole | null;
+  allowed_features: string[] | null;
 }
 
 interface AccountSummary {
@@ -93,6 +94,10 @@ interface AuthContextValue {
   canEditSettings: boolean;
   /** True if the caller can send messages and edit operational data (agent+). */
   canSendMessages: boolean;
+  /** Explicitly allowed feature keys for this user, or null if unrestricted. */
+  allowedFeatures: string[] | null;
+  /** True if the user is allowed to access a specific feature (inbox, contacts, broadcasts, etc.). */
+  canAccessFeature: (feature: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -128,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // missing account collapses to null rather than a half-
           // populated row (shouldn't happen post-017 NOT NULL, but
           // belt-and-braces against forks running older schemas).
-          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, account:accounts!inner(id, name)",
+          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, allowed_features, account:accounts!inner(id, name)",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -174,6 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           beta_features: data.beta_features ?? [],
           account_id: data.account_id ?? null,
           account_role: accountRole,
+          allowed_features: data.allowed_features ?? null,
         });
         setAccount(accountRow);
       }
@@ -276,9 +282,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // dependencies downstream.
   const derived = useMemo(() => {
     const role = profile?.account_role ?? null;
+    const allowed = profile?.allowed_features ?? null;
+
+    const canAccessFeature = (feature: string): boolean => {
+      // Owner and Admin always have full access to everything
+      if (role === "owner" || role === "admin") return true;
+      // If allowed_features is null or not configured, default based on role
+      if (!allowed || !Array.isArray(allowed)) {
+        if (feature === "settings") return false;
+        return true;
+      }
+      return allowed.includes(feature);
+    };
+
     return {
       accountRole: role,
       accountId: profile?.account_id ?? null,
+      allowedFeatures: allowed,
+      canAccessFeature,
       isOwner: role === "owner",
       isAdmin: role === "admin",
       isAgent: role === "agent",
@@ -287,7 +308,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canEditSettings: role ? canEditSettingsFor(role) : false,
       canSendMessages: role ? canSendMessagesFor(role) : false,
     };
-  }, [profile?.account_role, profile?.account_id]);
+  }, [profile?.account_role, profile?.account_id, profile?.allowed_features]);
 
   return (
     <AuthContext.Provider
@@ -337,6 +358,8 @@ export function useAuth(): AuthContextValue {
       canManageMembers: false,
       canEditSettings: false,
       canSendMessages: false,
+      allowedFeatures: null,
+      canAccessFeature: () => false,
     };
   }
   return ctx;
