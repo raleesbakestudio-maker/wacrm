@@ -197,11 +197,25 @@ export function MessageComposer({
       recordTimerRef.current = setInterval(() => {
         setRecordingSeconds((prev) => prev + 1);
       }, 1000);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Mic access error:", err);
-      toast.error(
-        "Microphone access denied. Please allow microphone permission in your browser."
-      );
+      const errorName = (err as { name?: string })?.name || "";
+      if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
+        toast.error(
+          "മൈക്രോഫോൺ അനുമതിയില്ല (Microphone Blocked). അഡ്രസ്സ് ബാറിലെ 🔒/🎙️ ഐക്കൺ ക്ലിക്ക് ചെയ്ത് Microphone 'Allow' നൽകുക.",
+          { duration: 6000 }
+        );
+      } else if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+        toast.error(
+          "മൈക്രോഫോൺ കണ്ടെത്താനായില്ല (No microphone detected). മൈക്ക് കണക്റ്റ് ചെയ്തിട്ടുണ്ടെന്ന് ഉറപ്പാക്കുക.",
+          { duration: 5000 }
+        );
+      } else {
+        toast.error(
+          "Microphone access denied. Please allow microphone permission in your browser.",
+          { duration: 5000 }
+        );
+      }
       discardVoiceRecording();
     }
   }, [cleanupAudioStream, discardVoiceRecording, readOnly, sessionExpired]);
