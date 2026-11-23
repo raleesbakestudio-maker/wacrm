@@ -1115,3 +1115,63 @@ async function startNewRun(
     outcome: outcome.outcome === "advanced" ? "started" : outcome.outcome,
   };
 }
+
+/**
+ * Manually start an active flow for a specific conversation / contact
+ * from the inbox composer.
+ */
+export async function startFlowForConversation(args: {
+  flowId: string;
+  conversationId: string;
+  contactId: string;
+  accountId: string;
+  userId: string;
+}): Promise<{ ok: boolean; run_id?: string; error?: string }> {
+  const db = supabaseAdmin();
+  const flow = await loadFlow(db, args.flowId);
+  if (!flow || flow.status !== "active") {
+    return { ok: false, error: "Flow not found or not active" };
+  }
+
+  // End any existing active run for this contact so the new flow can start cleanly
+  const activeRun = await loadActiveRunForContact(db, args.accountId, args.contactId);
+  if (activeRun) {
+    await endRun(db, activeRun.id, "handed_off", "superseded_by_manual_start");
+  }
+
+  const nodes = await loadAllNodes(db, flow.id);
+  if (!flow.entry_node_id || !nodes.has(flow.entry_node_id)) {
+    return { ok: false, error: "Flow has no valid entry node" };
+  }
+
+  const { data: inserted, error: insErr } = await db
+    .from("flow_runs")
+    .insert({
+      flow_id: flow.id,
+      account_id: flow.account_id,
+      user_id: args.userId,
+      contact_id: args.contactId,
+      conversation_id: args.conversationId,
+      status: "active",
+      current_node_key: flow.entry_node_id,
+    })
+    .select("*")
+    .maybeSingle();
+
+  if (insErr || !inserted) {
+    return { ok: false, error: insErr?.message || "Failed to create flow run" };
+  }
+
+  const run = inserted as FlowRunRow;
+  await logEvent(db, run.id, "started", flow.entry_node_id, {
+    flow_id: flow.id,
+    trigger_type: "manual",
+  });
+
+  await db.rpc("increment_flow_execution_count", {
+    p_flow_id: flow.id,
+  });
+
+  await advanceFromNodeKey(db, run, flow.entry_node_id, nodes);
+  return { ok: true, run_id: run.id };
+}
