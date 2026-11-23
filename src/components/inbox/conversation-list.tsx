@@ -4,13 +4,14 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown, Tag as TagIcon, X, Check } from "lucide-react";
 import { formatWhatsAppListTimestamp } from "@/lib/whatsapp/date-format";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,9 @@ export function ConversationList({
 }: ConversationListProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ConversationStatus | "all">("all");
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [selectedTagId, setSelectedTagId] = useState<string>("all");
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Keep the latest callback in a ref so the fetch effect below can
@@ -76,26 +80,33 @@ export function ConversationList({
     let cancelled = false;
 
     (async () => {
-      const { data, error } = await supabase
-        .from("conversations")
-        .select("*, contact:contacts(*)")
-        .order("last_message_at", { ascending: false });
+      const [convRes, tagsRes] = await Promise.all([
+        supabase
+          .from("conversations")
+          .select("*, contact:contacts(*)")
+          .order("last_message_at", { ascending: false }),
+        supabase.from("tags").select("*").order("name"),
+      ]);
 
       if (cancelled) return;
 
-      if (error) {
+      if (tagsRes.data) {
+        setAllTags(tagsRes.data as Tag[]);
+      }
+
+      if (convRes.error) {
         // Supabase errors have non-enumerable properties — log fields explicitly
         console.error("Failed to fetch conversations:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
+          message: convRes.error.message,
+          details: convRes.error.details,
+          hint: convRes.error.hint,
+          code: convRes.error.code,
         });
         setLoading(false);
         return;
       }
 
-      const convs = (data ?? []) as Conversation[];
+      const convs = (convRes.data ?? []) as Conversation[];
       const contactIds = Array.from(
         new Set(convs.map((c) => c.contact_id).filter(Boolean))
       );
@@ -146,18 +157,37 @@ export function ConversationList({
       result = result.filter((c) => c.status === filter);
     }
 
+    if (showUnreadOnly) {
+      result = result.filter((c) => c.unread_count > 0);
+    }
+
+    if (selectedTagId !== "all") {
+      result = result.filter((c) => {
+        const contactTags = c.contact?.tags ?? [];
+        return contactTags.some((t) => t.id === selectedTagId);
+      });
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter((c) => {
         const name = c.contact?.name?.toLowerCase() ?? "";
         const phone = c.contact?.phone?.toLowerCase() ?? "";
         const lastMsg = c.last_message_text?.toLowerCase() ?? "";
-        return name.includes(q) || phone.includes(q) || lastMsg.includes(q);
+        const matchesTag = (c.contact?.tags ?? []).some((t) =>
+          t.name.toLowerCase().includes(q)
+        );
+        return (
+          name.includes(q) ||
+          phone.includes(q) ||
+          lastMsg.includes(q) ||
+          matchesTag
+        );
       });
     }
 
     return result;
-  }, [conversations, filter, search]);
+  }, [conversations, filter, showUnreadOnly, selectedTagId, search]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -174,6 +204,20 @@ export function ConversationList({
   );
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
+  const selectedTag = useMemo(() => {
+    if (selectedTagId === "all") return null;
+    return allTags.find((t) => t.id === selectedTagId) ?? null;
+  }, [allTags, selectedTagId]);
+
+  const hasActiveFilters =
+    filter !== "all" || selectedTagId !== "all" || showUnreadOnly || search.trim() !== "";
+
+  const handleResetFilters = useCallback(() => {
+    setFilter("all");
+    setSelectedTagId("all");
+    setShowUnreadOnly(false);
+    setSearch("");
+  }, []);
 
   return (
     // w-full on mobile so the list occupies the whole viewport when it's
@@ -181,42 +225,186 @@ export function ConversationList({
     // row with the thread + contact sidebar.
     <div className="flex h-full w-full flex-col border-r border-slate-800 bg-slate-900 lg:w-80">
       {/* Search + Filter */}
-      <div className="space-y-2 border-b border-slate-800 p-3">
+      <div className="space-y-2 border-b border-slate-800 p-2.5 sm:p-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
           <Input
             value={search}
             onChange={handleSearchChange}
-            placeholder="Search conversations..."
-            className="border-slate-700 bg-slate-800 pl-9 text-sm text-white placeholder-slate-500 focus:border-primary/50"
+            placeholder="Search name, phone, tag..."
+            className="border-slate-700 bg-slate-800 pl-9 pr-8 text-sm text-white placeholder-slate-500 focus:border-primary/50 h-9"
           />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-slate-400 hover:text-white rounded-md hover:bg-slate-800">
-              {activeFilter?.label ?? "All"}
-              <ChevronDown className="h-3 w-3" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            className="border-slate-700 bg-slate-800"
+        {/* Filter Dropdowns row */}
+        <div className="flex items-center justify-between gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Status Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger className={cn(
+                "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md border border-slate-700/60 bg-slate-800/80 transition-colors",
+                filter !== "all" ? "text-primary border-primary/50 font-medium" : "text-slate-300 hover:text-white hover:bg-slate-700"
+              )}>
+                <span>{activeFilter?.label ?? "All Status"}</span>
+                <ChevronDown className="h-3 w-3 opacity-60" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="border-slate-700 bg-slate-800"
+              >
+                {FILTER_OPTIONS.map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() => setFilter(opt.value)}
+                    className={cn(
+                      "text-xs flex items-center justify-between",
+                      filter === opt.value
+                        ? "text-primary font-medium"
+                        : "text-slate-300"
+                    )}
+                  >
+                    <span>{opt.label}</span>
+                    {filter === opt.value && <Check className="h-3 w-3 ml-2" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Tag Filter Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger className={cn(
+                "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md border border-slate-700/60 bg-slate-800/80 transition-colors",
+                selectedTagId !== "all" ? "text-primary border-primary/50 font-medium" : "text-slate-300 hover:text-white hover:bg-slate-700"
+              )}>
+                <TagIcon className="h-3 w-3 text-primary shrink-0" />
+                <span className="truncate max-w-[110px]">
+                  {selectedTag ? selectedTag.name : "All Tags"}
+                </span>
+                <ChevronDown className="h-3 w-3 opacity-60 shrink-0" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="border-slate-700 bg-slate-800 max-h-64 overflow-y-auto w-48"
+              >
+                <DropdownMenuItem
+                  onClick={() => setSelectedTagId("all")}
+                  className={cn(
+                    "text-xs flex items-center justify-between",
+                    selectedTagId === "all" ? "text-primary font-medium" : "text-slate-300"
+                  )}
+                >
+                  <span>All Tags</span>
+                  {selectedTagId === "all" && <Check className="h-3 w-3" />}
+                </DropdownMenuItem>
+                {allTags.length > 0 && <DropdownMenuSeparator className="bg-slate-700" />}
+                {allTags.map((t) => (
+                  <DropdownMenuItem
+                    key={t.id}
+                    onClick={() => setSelectedTagId(t.id)}
+                    className={cn(
+                      "text-xs flex items-center justify-between gap-2",
+                      selectedTagId === t.id ? "text-primary font-medium" : "text-slate-300"
+                    )}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: t.color || "#3b82f6" }}
+                      />
+                      <span className="truncate">{t.name}</span>
+                    </div>
+                    {selectedTagId === t.id && <Check className="h-3 w-3 shrink-0" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              onClick={handleResetFilters}
+              className="inline-flex items-center gap-0.5 text-[11px] text-amber-400 hover:text-amber-300 transition-colors py-0.5 px-1 rounded hover:bg-slate-800"
+              title="Reset all filters"
+            >
+              <X className="h-3 w-3" />
+              <span>Clear</span>
+            </button>
+          )}
+        </div>
+
+        {/* Quick Filter Chips (Mobile-friendly horizontal scroll) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 pt-0.5 no-scrollbar text-xs">
+          <button
+            type="button"
+            onClick={() => {
+              setFilter("all");
+              setSelectedTagId("all");
+              setShowUnreadOnly(false);
+            }}
+            className={cn(
+              "px-2.5 py-1 rounded-full text-xs whitespace-nowrap transition-colors",
+              filter === "all" && selectedTagId === "all" && !showUnreadOnly
+                ? "bg-primary text-primary-foreground font-semibold"
+                : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+            )}
           >
-            {FILTER_OPTIONS.map((opt) => (
-              <DropdownMenuItem
-                key={opt.value}
-                onClick={() => setFilter(opt.value)}
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowUnreadOnly(!showUnreadOnly)}
+            className={cn(
+              "px-2.5 py-1 rounded-full text-xs whitespace-nowrap transition-colors border",
+              showUnreadOnly
+                ? "bg-emerald-600/30 text-emerald-300 border-emerald-500 font-semibold"
+                : "bg-slate-800 text-slate-300 border-slate-700/60 hover:bg-slate-700"
+            )}
+          >
+            Unread
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter(filter === "open" ? "all" : "open")}
+            className={cn(
+              "px-2.5 py-1 rounded-full text-xs whitespace-nowrap transition-colors border",
+              filter === "open"
+                ? "bg-primary/20 text-primary border-primary font-semibold"
+                : "bg-slate-800 text-slate-300 border-slate-700/60 hover:bg-slate-700"
+            )}
+          >
+            Open
+          </button>
+          {allTags.slice(0, 6).map((t) => {
+            const isSelected = selectedTagId === t.id;
+            return (
+              <button
+                type="button"
+                key={t.id}
+                onClick={() => setSelectedTagId(isSelected ? "all" : t.id)}
                 className={cn(
-                  "text-sm",
-                  filter === opt.value
-                    ? "text-primary"
-                    : "text-slate-300"
+                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs whitespace-nowrap transition-colors border",
+                  isSelected
+                    ? "bg-slate-700 text-white border-primary shadow-xs font-semibold"
+                    : "bg-slate-800/80 text-slate-300 border-slate-700/60 hover:bg-slate-700"
                 )}
               >
-                {opt.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                <span
+                  className="h-1.5 w-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: t.color || "#3b82f6" }}
+                />
+                <span className="truncate max-w-[100px]">{t.name}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Conversation Items */}
@@ -301,10 +489,10 @@ function ConversationItem({
           </span>
           <span
             className={cn(
-              "shrink-0 text-[10px]",
+              "shrink-0 text-[11px] sm:text-xs font-medium whitespace-nowrap text-right",
               conversation.unread_count > 0
                 ? "font-semibold text-emerald-400"
-                : "text-slate-400 dark:text-slate-500"
+                : "text-slate-400 dark:text-slate-400"
             )}
           >
             {formattedTime}
