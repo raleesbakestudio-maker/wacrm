@@ -116,12 +116,63 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   );
 }
 
-function MessageContent({ message }: { message: Message }) {
+/**
+ * Detects URLs in message text and renders them as clickable links,
+ * keeping regular text untouched. Trims trailing punctuation (like .,!?:;)
+ * from the URL so sentences like "visit https://google.com." work cleanly.
+ */
+function renderTextWithLinks(text: string | null | undefined, isAgent: boolean) {
+  if (!text) return null;
+
+  // Match URLs starting with http://, https://, or www.
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+  const parts = text.split(urlRegex);
+
+  return parts.map((part, index) => {
+    if (urlRegex.test(part)) {
+      urlRegex.lastIndex = 0;
+
+      // Extract trailing punctuation if any (e.g. '.', ',', '!', '?', ')', ';')
+      let url = part;
+      let trailingPunctuation = "";
+      const punctMatch = part.match(/([.,!?:;)]+)$/);
+      if (punctMatch) {
+        trailingPunctuation = punctMatch[1];
+        url = part.slice(0, -trailingPunctuation.length);
+      }
+
+      const href = url.startsWith("www.") ? `https://${url}` : url;
+
+      return (
+        <span key={index}>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              "underline underline-offset-2 font-medium transition-colors cursor-pointer",
+              isAgent
+                ? "text-blue-100 hover:text-white"
+                : "text-blue-400 hover:text-blue-300"
+            )}
+          >
+            {url}
+          </a>
+          {trailingPunctuation}
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
+function MessageContent({ message, isAgent }: { message: Message; isAgent: boolean }) {
   switch (message.content_type) {
     case "text":
       return (
         <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] text-sm leading-relaxed select-text">
-          {message.content_text}
+          {renderTextWithLinks(message.content_text, isAgent)}
         </p>
       );
 
@@ -135,7 +186,7 @@ function MessageContent({ message }: { message: Message }) {
           )}
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] text-sm leading-relaxed select-text">
-              {message.content_text}
+              {renderTextWithLinks(message.content_text, isAgent)}
             </p>
           )}
         </div>
@@ -155,7 +206,7 @@ function MessageContent({ message }: { message: Message }) {
           )}
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] text-sm leading-relaxed select-text">
-              {message.content_text}
+              {renderTextWithLinks(message.content_text, isAgent)}
             </p>
           )}
         </div>
@@ -199,7 +250,7 @@ function MessageContent({ message }: { message: Message }) {
           </span>
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] text-sm leading-relaxed select-text">
-              {message.content_text}
+              {renderTextWithLinks(message.content_text, isAgent)}
             </p>
           )}
         </div>
@@ -226,7 +277,7 @@ function MessageContent({ message }: { message: Message }) {
             Button reply
           </span>
           <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] text-sm leading-relaxed select-text">
-            {message.content_text || "[Interactive reply]"}
+            {renderTextWithLinks(message.content_text || "[Interactive reply]", isAgent)}
           </p>
         </div>
       );
@@ -235,7 +286,7 @@ function MessageContent({ message }: { message: Message }) {
     default:
       return (
         <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] text-sm leading-relaxed select-text">
-          {message.content_text || "[Unsupported message type]"}
+          {renderTextWithLinks(message.content_text || "[Unsupported message type]", isAgent)}
         </p>
       );
   }
@@ -271,7 +322,7 @@ export function MessageBubble({
         {reply && (
           <ReplyQuote authorLabel={reply.authorLabel} preview={reply.preview} />
         )}
-        <MessageContent message={message} />
+        <MessageContent message={message} isAgent={isAgent} />
         <div
           className={cn(
             "mt-1 flex items-center gap-1",
