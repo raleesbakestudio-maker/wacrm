@@ -56,6 +56,19 @@ function RateCell({
   );
 }
 
+function formatDateTime(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleString([], {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
 export default function BroadcastsPage() {
   const router = useRouter();
   const canCreate = useCan('send-messages');
@@ -228,7 +241,7 @@ export default function BroadcastsPage() {
                 <TableHead className="hidden text-slate-400 lg:table-cell">Delivery</TableHead>
                 <TableHead className="hidden text-slate-400 lg:table-cell">Read</TableHead>
                 <TableHead className="text-slate-400">Status</TableHead>
-                <TableHead className="hidden text-slate-400 sm:table-cell">Date</TableHead>
+                <TableHead className="hidden text-slate-400 sm:table-cell">Date & Time</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -276,18 +289,18 @@ export default function BroadcastsPage() {
                         {status.label}
                       </span>
                     </TableCell>
-                    <TableCell className="hidden text-slate-400 sm:table-cell">
+                    <TableCell className="hidden text-slate-300 sm:table-cell whitespace-nowrap text-xs">
                       {broadcast.status === 'scheduled' && broadcast.scheduled_at ? (
-                        <span className="text-blue-400 font-medium text-xs">
-                          📅 {new Date(broadcast.scheduled_at).toLocaleDateString([], {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-blue-400 font-medium">
+                            📅 {formatDateTime(broadcast.scheduled_at)}
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            Created: {formatDateTime(broadcast.created_at)}
+                          </span>
+                        </div>
                       ) : (
-                        new Date(broadcast.created_at).toLocaleDateString()
+                        <span>{formatDateTime(broadcast.created_at)}</span>
                       )}
                     </TableCell>
                   </TableRow>

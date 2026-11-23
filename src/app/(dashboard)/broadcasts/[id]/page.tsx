@@ -300,7 +300,14 @@ export default function BroadcastDetailPage() {
               <span>Template: {broadcast.template_name}</span>
               <span>-</span>
               <span>
-                Created {new Date(broadcast.created_at).toLocaleDateString()}
+                Created {new Date(broadcast.created_at).toLocaleString([], {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true,
+                })}
               </span>
             </div>
           </div>
