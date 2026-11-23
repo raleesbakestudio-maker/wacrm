@@ -19,6 +19,10 @@ describe("formatWhatsAppListTimestamp", () => {
     const todayMorning = new Date();
     todayMorning.setHours(9, 15, 0, 0);
     expect(formatWhatsAppListTimestamp(todayMorning.toISOString())).toBe("9:15 AM");
+
+    // Also formats Postgres timestamp with space
+    const pgFormatted = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')} 14:30:00+00`;
+    expect(formatWhatsAppListTimestamp(pgFormatted)).toBeTruthy();
   });
 
   it("formats yesterday's timestamp as 'Yesterday'", () => {

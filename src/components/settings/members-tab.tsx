@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import {
   AlertTriangle,
   Crown,
+  KeyRound,
   Loader2,
   Mail,
   MailX,
@@ -63,6 +64,7 @@ import type { AccountRole } from '@/lib/auth/roles';
 import { InviteMemberDialog } from './invite-member-dialog';
 import { AddStaffDialog } from './add-staff-dialog';
 import { EditPermissionsDialog } from './edit-permissions-dialog';
+import { ResetPasswordDialog } from './reset-password-dialog';
 import { APP_FEATURES } from '@/lib/auth/features';
 
 interface Member {
@@ -155,6 +157,7 @@ export function MembersTab() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [addStaffOpen, setAddStaffOpen] = useState(false);
   const [permissionsMember, setPermissionsMember] = useState<Member | null>(null);
+  const [resetPasswordMember, setResetPasswordMember] = useState<Member | null>(null);
   const [removingMember, setRemovingMember] = useState<Member | null>(null);
   const [pendingMemberAction, setPendingMemberAction] = useState<string | null>(
     null,
@@ -470,6 +473,20 @@ export function MembersTab() {
                       </Button>
                     )}
 
+                    {/* Reset Password button. Admin+ only; not on owner row; never on yourself */}
+                    {canManageMembers && !isOwnerRow && !isSelf && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setResetPasswordMember(member)}
+                        className="h-9 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs px-2.5 inline-flex items-center gap-1 shrink-0"
+                        title="Reset staff password"
+                      >
+                        <KeyRound className="size-3.5 text-amber-400" />
+                        <span className="hidden sm:inline">Reset Password</span>
+                      </Button>
+                    )}
+
                     {/* Role display / editor. Inline Select is admin+
                         only AND not allowed on the owner row (owner
                         changes go through transfer, which lands later). */}
@@ -688,6 +705,12 @@ export function MembersTab() {
         onOpenChange={(open) => !open && setPermissionsMember(null)}
         member={permissionsMember}
         onSaved={() => void loadEverything()}
+      />
+
+      <ResetPasswordDialog
+        open={!!resetPasswordMember}
+        onOpenChange={(open) => !open && setResetPasswordMember(null)}
+        member={resetPasswordMember}
       />
     </div>
   );

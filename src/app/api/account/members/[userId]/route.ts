@@ -41,10 +41,55 @@ export async function PATCH(
       role?: unknown;
       allowed_features?: string[] | null;
       allowedFeatures?: string[] | null;
+      password?: string;
     } | null;
 
     if (!body) {
       return NextResponse.json({ error: "Missing body" }, { status: 400 });
+    }
+
+    if (body.password !== undefined) {
+      if (typeof body.password !== "string" || body.password.length < 6) {
+        return NextResponse.json(
+          { error: "Password must be at least 6 characters" },
+          { status: 400 },
+        );
+      }
+
+      // Verify the target user belongs to this account
+      const admin = supabaseAdmin();
+      const { data: targetProfile, error: profileErr } = await admin
+        .from("profiles")
+        .select("account_id, account_role, email")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (profileErr || !targetProfile || targetProfile.account_id !== ctx.accountId) {
+        return NextResponse.json(
+          { error: "Member not found in your account" },
+          { status: 404 },
+        );
+      }
+
+      // Admin cannot change owner's password
+      if (targetProfile.account_role === "owner" && ctx.role !== "owner") {
+        return NextResponse.json(
+          { error: "Cannot change the account owner's password" },
+          { status: 403 },
+        );
+      }
+
+      const { error: pwdError } = await admin.auth.admin.updateUserById(userId, {
+        password: body.password,
+      });
+
+      if (pwdError) {
+        console.error("[PATCH /api/account/members/[userId]] password update error:", pwdError);
+        return NextResponse.json(
+          { error: pwdError.message || "Failed to update password" },
+          { status: 500 },
+        );
+      }
     }
 
     if (body.role !== undefined) {

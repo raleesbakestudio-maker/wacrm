@@ -408,7 +408,7 @@ export function ConversationList({
       </div>
 
       {/* Conversation Items */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 w-full min-w-0 overflow-x-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -418,7 +418,7 @@ export function ConversationList({
             <p className="text-sm text-slate-500">No conversations found</p>
           </div>
         ) : (
-          <div className="flex flex-col">
+          <div className="flex flex-col w-full min-w-0 max-w-full overflow-x-hidden divide-y divide-slate-100 dark:divide-slate-800/40">
             {filtered.map((conv) => (
               <ConversationItem
                 key={conv.id}
@@ -464,12 +464,12 @@ function ConversationItem({
     <button
       onClick={handleClick}
       className={cn(
-        "flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-slate-800/50",
-        isActive && "border-l-2 border-primary bg-slate-800/70"
+        "flex w-full min-w-0 max-w-full overflow-hidden items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/50",
+        isActive && "border-l-2 border-primary bg-slate-100/80 dark:bg-slate-800/70"
       )}
     >
       {/* Avatar */}
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-white">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-sm font-semibold text-slate-800 dark:text-white">
         {contact?.avatar_url ? (
           <img
             src={contact.avatar_url}
@@ -482,29 +482,31 @@ function ConversationItem({
       </div>
 
       {/* Content */}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium text-white">
+      <div className="min-w-0 flex-1 overflow-hidden">
+        <div className="flex items-center justify-between gap-1.5 min-w-0 w-full">
+          <span className="truncate min-w-0 flex-1 text-sm font-semibold text-slate-900 dark:text-white">
             {displayName}
           </span>
-          <span
-            className={cn(
-              "shrink-0 text-[11px] sm:text-xs font-medium whitespace-nowrap text-right",
-              conversation.unread_count > 0
-                ? "font-semibold text-emerald-400"
-                : "text-slate-400 dark:text-slate-400"
-            )}
-          >
-            {formattedTime}
-          </span>
+          {formattedTime ? (
+            <span
+              className={cn(
+                "shrink-0 ml-1.5 text-[11px] font-medium whitespace-nowrap text-right",
+                conversation.unread_count > 0
+                  ? "font-bold text-emerald-600 dark:text-emerald-400"
+                  : "text-slate-500 dark:text-slate-400"
+              )}
+            >
+              {formattedTime}
+            </span>
+          ) : null}
         </div>
-        <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className="truncate text-xs text-slate-400">
+        <div className="mt-0.5 flex items-center justify-between gap-1.5 min-w-0 w-full">
+          <p className="truncate min-w-0 flex-1 text-xs text-slate-500 dark:text-slate-400">
             {conversation.last_message_text || "No messages yet"}
           </p>
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1.5 ml-1.5">
             {conversation.unread_count > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white px-1 shadow-xs">
                 {conversation.unread_count}
               </span>
             )}
@@ -519,22 +521,22 @@ function ConversationItem({
         </div>
         {/* Contact tags preview */}
         {tags.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1 min-w-0">
             {tags.slice(0, 3).map((t) => (
               <span
                 key={t.id}
-                className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium leading-none border"
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium leading-none border"
                 style={{
-                  backgroundColor: `${t.color || '#3b82f6'}18`,
-                  borderColor: `${t.color || '#3b82f6'}35`,
-                  color: t.color || '#93c5fd',
+                  backgroundColor: `${t.color || '#10b981'}18`,
+                  borderColor: `${t.color || '#10b981'}40`,
+                  color: t.color || '#059669',
                 }}
               >
                 {t.name}
               </span>
             ))}
             {tags.length > 3 && (
-              <span className="text-[9px] text-slate-400 font-medium">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                 +{tags.length - 3}
               </span>
             )}

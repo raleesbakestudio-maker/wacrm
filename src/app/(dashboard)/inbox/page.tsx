@@ -373,7 +373,9 @@ export default function InboxPage() {
               prev[i].last_message_text !== loaded[i].last_message_text ||
               prev[i].last_message_at !== loaded[i].last_message_at ||
               prev[i].unread_count !== loaded[i].unread_count ||
-              prev[i].status !== loaded[i].status
+              prev[i].status !== loaded[i].status ||
+              (prev[i].contact?.tags?.length ?? 0) !==
+                (loaded[i].contact?.tags?.length ?? 0)
             ) {
               isSame = false;
               break;
