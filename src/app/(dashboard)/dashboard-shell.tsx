@@ -19,6 +19,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const isInbox = pathname?.startsWith("/inbox");
+  const isFlowEditor = pathname?.startsWith("/flows/") && pathname !== "/flows";
 
   const currentFeature = pathname ? pathname.split("/")[1] : "";
   const isFeatureRestricted =
@@ -64,11 +65,11 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       <Sidebar open={sidebarOpen} onClose={closeSidebar} />
       <div className="flex flex-1 flex-col overflow-hidden min-w-0 w-full">
         <Header onOpenSidebar={() => setSidebarOpen(true)} />
-        {/* Inbox has zero padding and overflow-hidden to prevent horizontal/vertical margin blowout on mobile. Other pages have standard padding. */}
+        {/* Inbox and Flow Editor have zero padding and overflow-hidden to give maximum canvas/chat area. Other pages have standard padding. */}
         <main
           className={cn(
             "flex-1 min-w-0 w-full",
-            isInbox
+            isInbox || isFlowEditor
               ? "overflow-hidden p-0"
               : "overflow-y-auto p-4 sm:p-6"
           )}

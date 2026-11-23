@@ -78,14 +78,31 @@ export function FlowEditorShell({ initialFlow, initialNodes }: Props) {
 
   return (
     <FlowEditorProvider initialFlow={initialFlow} initialNodes={initialNodes}>
-      <div className="mx-auto flex h-full max-w-4xl flex-col gap-4 sm:gap-6 p-3 sm:p-6">
+      <div
+        className={cn(
+          "flex h-full flex-col min-w-0 w-full transition-all duration-200",
+          effectiveView === "canvas"
+            ? "max-w-[1920px] mx-auto p-2 sm:p-4 gap-2.5 flex-1 overflow-hidden"
+            : "max-w-4xl mx-auto p-4 sm:p-6 gap-4 sm:gap-6 overflow-y-auto"
+        )}
+      >
         <EditorHeader />
         {!isMobile && (
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-slate-400">
+              {effectiveView === "canvas" ? (
+                <span className="flex items-center gap-1.5 font-medium text-slate-300">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  Interactive Flow Canvas & Mind-Map
+                </span>
+              ) : (
+                <span className="text-slate-400">Step-by-step List Editor</span>
+              )}
+            </div>
             <div
               role="group"
               aria-label="Editor view"
-              className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 p-0.5 text-xs"
+              className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 p-0.5 text-xs shadow-sm"
             >
               <ToggleButton
                 active={effectiveView === "canvas"}
@@ -103,12 +120,12 @@ export function FlowEditorShell({ initialFlow, initialNodes }: Props) {
           </div>
         )}
 
-        {effectiveView === "canvas" ? <FlowCanvas /> : <FlowBuilder />}
+        <div className="flex-1 min-h-0 flex flex-col">
+          {effectiveView === "canvas" ? <FlowCanvas /> : <FlowBuilder />}
+        </div>
 
-        {/* Sticky-bottom validation panel mirrors the placement used
-            when this lived inside FlowBuilder — the activate-readiness
-            status follows the user as they scroll, in either view. */}
-        <div className="sticky bottom-4 z-10 shadow-xl shadow-slate-950/60">
+        {/* Validation panel at the bottom */}
+        <div className="shrink-0 pt-1 shadow-lg shadow-slate-950/60">
           <ValidationPanel />
         </div>
       </div>

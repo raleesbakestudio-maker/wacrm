@@ -54,7 +54,8 @@ import {
   type OnNodeDrag,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Wand2, Scan, Maximize2, Minimize2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -238,6 +239,19 @@ function FlowCanvasInner() {
   // list view's analogue is the per-card expanded set in
   // flow-builder.tsx.
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Keyboard shortcut: Esc to exit fullscreen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFullscreen]);
+
   const selectedNode = useMemo(
     () =>
       selectedNodeKey
@@ -245,6 +259,27 @@ function FlowCanvasInner() {
         : null,
     [selectedNodeKey, builderNodes],
   );
+
+  const handleAutoLayout = useCallback(() => {
+    const canvasEdges = deriveCanvasEdges(builderNodes);
+    const positions = autoLayout(
+      builderNodes.map((n) => ({
+        id: n.node_key,
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+      })),
+      canvasEdges.map((e) => ({ source: e.source, target: e.target })),
+      { direction: "TB", rankSep: 90, nodeSep: 70 }
+    );
+    if (!positions) return;
+    for (const [key, pos] of positions.entries()) {
+      updateNodePosition(key, Math.round(pos.x), Math.round(pos.y));
+    }
+    toast.success("Flow auto-arranged cleanly!");
+    setTimeout(() => {
+      reactFlow.fitView({ padding: 0.25, duration: 400 });
+    }, 50);
+  }, [builderNodes, updateNodePosition, reactFlow]);
 
   const { rfNodes, rfEdges } = useMemo(() => {
     const canvasEdges = deriveCanvasEdges(builderNodes);
@@ -422,7 +457,7 @@ function FlowCanvasInner() {
 
   if (rfNodes.length === 0) {
     return (
-      <div className="flex h-[60vh] flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-slate-700 bg-slate-950 text-sm text-slate-500">
+      <div className="flex flex-1 min-h-[60vh] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-700 bg-slate-950/80 text-sm text-slate-500">
         <p>No nodes yet.</p>
         <CanvasAddNodeButton />
       </div>
@@ -431,13 +466,20 @@ function FlowCanvasInner() {
 
   return (
     <>
-      <div className="h-[70vh] w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
+      <div
+        className={cn(
+          "relative w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950/95 shadow-2xl transition-all duration-200",
+          isFullscreen
+            ? "fixed inset-0 z-50 rounded-none border-none h-screen w-screen p-2 bg-slate-950"
+            : "flex-1 min-h-[550px] h-[calc(100vh-175px)]"
+        )}
+      >
         <ReactFlow
           nodes={rfNodes}
           edges={rfEdges}
           nodeTypes={NODE_TYPES}
           fitView
-          fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
+          fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
           proOptions={{ hideAttribution: true }}
           onNodeDragStop={handleNodeDragStop}
           onNodeClick={handleNodeClick}
@@ -468,6 +510,53 @@ function FlowCanvasInner() {
             maskColor="rgba(15, 23, 42, 0.7)"
             className="!border !border-slate-700 !bg-slate-900"
           />
+
+          {/* Quick Toolbar (Top Right) */}
+          <Panel position="top-right" className="!top-3 !right-3 flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleAutoLayout}
+              className="h-8 border-slate-700 bg-slate-900/90 text-xs text-slate-200 hover:bg-slate-800 hover:text-white shadow-lg backdrop-blur flex items-center gap-1.5"
+              title="Automatically align and arrange nodes neatly"
+            >
+              <Wand2 className="h-3.5 w-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Auto Arrange</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => reactFlow.fitView({ padding: 0.25, duration: 400 })}
+              className="h-8 border-slate-700 bg-slate-900/90 text-xs text-slate-200 hover:bg-slate-800 hover:text-white shadow-lg backdrop-blur flex items-center gap-1.5"
+              title="Fit and center canvas"
+            >
+              <Scan className="h-3.5 w-3.5 text-blue-400" />
+              <span className="hidden sm:inline">Fit Screen</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsFullscreen((prev) => !prev)}
+              className="h-8 border-slate-700 bg-slate-900/90 text-xs text-slate-200 hover:bg-slate-800 hover:text-white shadow-lg backdrop-blur flex items-center gap-1.5"
+              title={isFullscreen ? "Exit Fullscreen (Esc)" : "Fullscreen Canvas"}
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="hidden sm:inline">Exit Fullscreen</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="hidden sm:inline">Fullscreen</span>
+                </>
+              )}
+            </Button>
+          </Panel>
+
           <Panel position="bottom-right" className="!bottom-4 !right-4">
             <CanvasAddNodeButton />
           </Panel>

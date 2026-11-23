@@ -26,13 +26,11 @@ export function ValidationPanel() {
   const { issues, requestFlash } = useFlowEditor();
 
   if (issues.length === 0) {
-    // Slate-950 base + emerald accents so the panel stays readable when
-    // sticky-positioned over scrolled-behind node cards (a translucent
-    // bg-emerald-500/10 would bleed through ugly).
+    // Slate-950 base + emerald accents with compact padding
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-emerald-600/50 bg-slate-950 p-3 text-sm font-medium text-emerald-300">
-        <CircleCheck className="h-4 w-4 shrink-0" />
-        No issues. Ready to activate.
+      <div className="flex items-center gap-2 rounded-lg border border-emerald-600/40 bg-slate-950/90 px-3 py-1.5 text-xs font-medium text-emerald-300 shadow-md">
+        <CircleCheck className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+        <span>No issues · Flow is verified and ready to activate</span>
       </div>
     );
   }
