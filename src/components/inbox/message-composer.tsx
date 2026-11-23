@@ -437,19 +437,6 @@ export function MessageComposer({
           <Zap className="h-4 w-4" />
         </GatedButton>
 
-        {/* Template Picker Button */}
-        <GatedButton
-          variant="ghost"
-          size="sm"
-          canAct={!readOnly}
-          gateReason="send messages"
-          title={readOnly ? undefined : "Send template"}
-          className="h-9 w-9 shrink-0 p-0 text-slate-400 hover:text-white"
-          onClick={onOpenTemplates}
-        >
-          <LayoutTemplate className="h-4 w-4" />
-        </GatedButton>
-
         {/* Start Flow Button (🔄) */}
         <GatedButton
           variant="ghost"
