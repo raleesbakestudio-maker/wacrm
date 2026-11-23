@@ -135,8 +135,48 @@ export function ConversationList({
         }
       }
 
+      // Deduplicate conversations so that no two windows share the same contact phone number or contact_id
+      const seenKeys = new Map<string, Conversation>();
+      const deduplicatedConvs: Conversation[] = [];
+      for (const c of convs) {
+        const rawPhone = c.contact?.phone;
+        const cleanPhone = rawPhone ? rawPhone.replace(/\D/g, "") : null;
+        const key =
+          cleanPhone && cleanPhone.length >= 8
+            ? cleanPhone.slice(-10)
+            : c.contact_id || c.id;
+
+        if (!seenKeys.has(key)) {
+          seenKeys.set(key, c);
+          deduplicatedConvs.push(c);
+        } else {
+          const existing = seenKeys.get(key)!;
+          if (
+            (!existing.last_message_at && c.last_message_at) ||
+            (existing.last_message_at &&
+              c.last_message_at &&
+              new Date(c.last_message_at) > new Date(existing.last_message_at))
+          ) {
+            const idx = deduplicatedConvs.indexOf(existing);
+            if (idx !== -1) {
+              if (existing.contact?.tags && c.contact) {
+                const merged = [
+                  ...(c.contact.tags || []),
+                  ...(existing.contact.tags || []),
+                ];
+                c.contact.tags = Array.from(
+                  new Map(merged.map((t) => [t.id, t])).values()
+                );
+              }
+              deduplicatedConvs[idx] = c;
+              seenKeys.set(key, c);
+            }
+          }
+        }
+      }
+
       if (!cancelled) {
-        onConversationsLoadedRef.current(convs);
+        onConversationsLoadedRef.current(deduplicatedConvs);
         setLoading(false);
       }
     })();
@@ -150,7 +190,20 @@ export function ConversationList({
   }, [resyncToken]);
 
   const filtered = useMemo(() => {
-    let result = conversations;
+    // Deduplicate conversations so each phone number only appears once
+    const seen = new Set<string>();
+    const uniqueConvs: Conversation[] = [];
+    for (const c of conversations) {
+      const raw = c.contact?.phone;
+      const clean = raw ? raw.replace(/\D/g, "") : null;
+      const key = clean && clean.length >= 8 ? clean.slice(-10) : c.contact_id || c.id;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueConvs.push(c);
+      }
+    }
+
+    let result = uniqueConvs;
 
     if (filter !== "all") {
       result = result.filter((c) => c.status === filter);

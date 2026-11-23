@@ -125,7 +125,15 @@ export default function InboxPage() {
               : c,
           );
         }
-        return [fetched, ...prev];
+        const fetchedCleanPhone = fetched.contact?.phone?.replace(/\D/g, "");
+        const filteredPrev =
+          fetchedCleanPhone && fetchedCleanPhone.length >= 8
+            ? prev.filter((c) => {
+                const cp = c.contact?.phone?.replace(/\D/g, "");
+                return !cp || cp.slice(-10) !== fetchedCleanPhone.slice(-10);
+              })
+            : prev;
+        return [fetched, ...filteredPrev];
       });
     } finally {
       hydratingConvIdsRef.current.delete(convId);

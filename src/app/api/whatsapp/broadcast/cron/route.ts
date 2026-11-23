@@ -135,7 +135,7 @@ async function handleCron() {
           }));
           const { data: createdConvs } = await admin
             .from('conversations')
-            .insert(newConvs)
+            .upsert(newConvs, { onConflict: 'account_id,contact_id' })
             .select('id, contact_id');
 
           for (const c of createdConvs ?? []) {
