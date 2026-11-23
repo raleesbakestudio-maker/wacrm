@@ -10,6 +10,7 @@ import {
   Palette,
   UsersRound,
   Zap,
+  Database,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
@@ -21,6 +22,7 @@ import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { MembersTab } from '@/components/settings/members-tab';
 import { QuickRepliesTab } from '@/components/settings/quick-replies-tab';
+import { DataRetentionTab } from '@/components/settings/data-retention-tab';
 
 const TAB_VALUES = [
   'profile',
@@ -29,6 +31,7 @@ const TAB_VALUES = [
   'replies',
   'templates',
   'tags',
+  'data',
   'appearance',
 ] as const;
 type TabValue = (typeof TAB_VALUES)[number];
@@ -123,6 +126,13 @@ export default function SettingsPage() {
               Tags
             </TabsTrigger>
             <TabsTrigger
+              value="data"
+              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            >
+              <Database className="size-4" />
+              Data Retention
+            </TabsTrigger>
+            <TabsTrigger
               value="appearance"
               className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
             >
@@ -156,6 +166,10 @@ export default function SettingsPage() {
 
         <TabsContent value="tags">
           <TagManager />
+        </TabsContent>
+
+        <TabsContent value="data">
+          <DataRetentionTab />
         </TabsContent>
 
         <TabsContent value="appearance">

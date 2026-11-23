@@ -24,10 +24,13 @@ import {
   RefreshCw,
   Info,
   Tag as TagIcon,
+  MoreVertical,
+  Trash2,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { formatWhatsAppHeaderStatus } from "@/lib/whatsapp/date-format";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +38,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ContactSidebar } from "./contact-sidebar";
@@ -180,6 +191,30 @@ export function MessageThread({
   }, [isRefreshing, onRefresh]);
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
   const [mobileContactOpen, setMobileContactOpen] = useState(false);
+  const [clearChatModalOpen, setClearChatModalOpen] = useState(false);
+  const [clearingChat, setClearingChat] = useState(false);
+
+  const handleClearChat = async () => {
+    if (!conversation) return;
+    try {
+      setClearingChat(true);
+      const res = await fetch(`/api/whatsapp/conversations/${conversation.id}/clear`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        throw new Error("Failed to clear chat");
+      }
+      onMessagesLoaded([]);
+      onRefresh?.();
+      setClearChatModalOpen(false);
+      toast.success("Chat history cleared permanently");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to clear chat history");
+    } finally {
+      setClearingChat(false);
+    }
+  };
 
   // WhatsApp-style last message status (e.g. "today at 10:45 AM", "yesterday at 2:30 PM", "2 days ago")
   const lastActivityStatus = useMemo(() => {
@@ -1009,6 +1044,25 @@ export function MessageThread({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* More Actions (Clear Chat) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="inline-flex items-center justify-center h-7 w-7 text-xs rounded-md text-slate-400 hover:text-white hover:bg-slate-800 shrink-0"
+              title="More actions"
+            >
+              <MoreVertical className="h-3.5 w-3.5" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="border-slate-700 bg-slate-800">
+              <DropdownMenuItem
+                onClick={() => setClearChatModalOpen(true)}
+                className="text-xs text-rose-400 hover:text-rose-300 focus:text-rose-300 cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Clear Chat History</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -1112,6 +1166,45 @@ export function MessageThread({
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Clear Chat Confirmation Dialog */}
+      <Dialog open={clearChatModalOpen} onOpenChange={setClearChatModalOpen}>
+        <DialogContent className="border-slate-800 bg-slate-900 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-rose-400 flex items-center gap-2">
+              <Trash2 className="h-4 w-4" />
+              Clear Chat History
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-300 pt-2 leading-relaxed">
+              ഈ കസ്റ്റമറുമായുള്ള എല്ലാ മെസ്സേജുകളും സെർവറിൽ നിന്ന് പെർമനന്റ് ആയി ഡിലീറ്റ് ചെയ്യപ്പെടും. ഈ പ്രവർത്തനം പിന്നീട് തിരിച്ചെടുക്കാൻ സാധ്യമല്ല.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="gap-2 sm:gap-0 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setClearChatModalOpen(false)}
+              className="text-slate-400 hover:text-white text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={clearingChat}
+              onClick={handleClearChat}
+              className="bg-rose-600 hover:bg-rose-500 text-white text-xs gap-1.5"
+            >
+              {clearingChat ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              <span>Clear Chat</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

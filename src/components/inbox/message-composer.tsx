@@ -12,6 +12,9 @@ import {
   Search,
   GitBranch,
   Play,
+  Pause,
+  Square,
+  Trash2,
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -93,6 +96,219 @@ export function MessageComposer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const canSend = useCan("send-messages");
   const readOnly = !canSend;
+
+  // Voice Recording State
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
+  const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+  const [uploadingVoice, setUploadingVoice] = useState(false);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const previewAudioElRef = useRef<HTMLAudioElement | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+
+  const formatDuration = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  };
+
+  const cleanupAudioStream = useCallback(() => {
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((t) => t.stop());
+      audioStreamRef.current = null;
+    }
+  }, []);
+
+  const discardVoiceRecording = useCallback(() => {
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    cleanupAudioStream();
+    if (previewAudioUrl) {
+      URL.revokeObjectURL(previewAudioUrl);
+    }
+    setIsRecording(false);
+    setRecordingSeconds(0);
+    setRecordedBlob(null);
+    setPreviewAudioUrl(null);
+    setIsPlayingPreview(false);
+  }, [cleanupAudioStream, previewAudioUrl]);
+
+  const startVoiceRecording = useCallback(async () => {
+    if (readOnly || sessionExpired) return;
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast.error("Audio recording is not supported in this browser.");
+        return;
+      }
+
+      discardVoiceRecording();
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+      audioChunksRef.current = [];
+
+      let mimeType = "";
+      if (typeof MediaRecorder !== "undefined") {
+        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+          mimeType = "audio/webm;codecs=opus";
+        } else if (MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")) {
+          mimeType = "audio/ogg;codecs=opus";
+        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = "audio/mp4";
+        }
+      }
+
+      const recorder = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType } : undefined
+      );
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        cleanupAudioStream();
+        const finalBlob = new Blob(audioChunksRef.current, {
+          type: mimeType || "audio/ogg",
+        });
+        setRecordedBlob(finalBlob);
+        const objUrl = URL.createObjectURL(finalBlob);
+        setPreviewAudioUrl(objUrl);
+      };
+
+      recorder.start(100);
+      setIsRecording(true);
+      setRecordingSeconds(0);
+
+      recordTimerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error("Mic access error:", err);
+      toast.error(
+        "Microphone access denied. Please allow microphone permission in your browser."
+      );
+      discardVoiceRecording();
+    }
+  }, [cleanupAudioStream, discardVoiceRecording, readOnly, sessionExpired]);
+
+  const stopVoiceRecordingForReview = useCallback(() => {
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  }, []);
+
+  const sendRecordedVoice = useCallback(
+    async (blobToSend?: Blob) => {
+      const blob = blobToSend || recordedBlob;
+      if (!blob) {
+        toast.error("No recorded voice found");
+        return;
+      }
+
+      setUploadingVoice(true);
+      try {
+        const formData = new FormData();
+        const ext = blob.type.includes("mp4")
+          ? "m4a"
+          : blob.type.includes("webm")
+            ? "webm"
+            : "ogg";
+        formData.append("file", blob, `voice-note-${Date.now()}.${ext}`);
+
+        const res = await fetch("/api/whatsapp/voice/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "Failed to upload voice note");
+        }
+
+        const data = (await res.json()) as { url: string; filename: string };
+        onSend("", replyTo?.id, data.url, "audio", data.filename);
+
+        discardVoiceRecording();
+        toast.success("Voice note sent");
+      } catch (err) {
+        console.error("Voice send failed:", err);
+        toast.error(
+          err instanceof Error ? err.message : "Failed to send voice note"
+        );
+      } finally {
+        setUploadingVoice(false);
+      }
+    },
+    [discardVoiceRecording, onSend, recordedBlob, replyTo?.id]
+  );
+
+  const handleQuickSendLive = useCallback(() => {
+    if (!mediaRecorderRef.current) return;
+
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+
+    const recorder = mediaRecorderRef.current;
+    recorder.onstop = () => {
+      cleanupAudioStream();
+      const finalBlob = new Blob(audioChunksRef.current, {
+        type: recorder.mimeType || "audio/ogg",
+      });
+      sendRecordedVoice(finalBlob);
+    };
+
+    if (recorder.state !== "inactive") {
+      recorder.stop();
+    }
+    setIsRecording(false);
+  }, [cleanupAudioStream, sendRecordedVoice]);
+
+  const togglePreviewAudio = useCallback(() => {
+    if (!previewAudioElRef.current) return;
+    if (isPlayingPreview) {
+      previewAudioElRef.current.pause();
+      setIsPlayingPreview(false);
+    } else {
+      previewAudioElRef.current
+        .play()
+        .then(() => {
+          setIsPlayingPreview(true);
+        })
+        .catch(() => {
+          setIsPlayingPreview(false);
+        });
+    }
+  }, [isPlayingPreview]);
+
+  // Clean up recording stream on unmount
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      cleanupAudioStream();
+    };
+  }, [cleanupAudioStream]);
 
   const handleOpenFlows = useCallback(async () => {
     setFlowModalOpen(true);
@@ -423,65 +639,196 @@ export function MessageComposer({
         </div>
       )}
 
-      <div className="flex items-end gap-1.5 sm:gap-2 min-w-0 w-full">
-        {/* Quick Replies Button (⚡) */}
-        <GatedButton
-          variant="ghost"
-          size="sm"
-          canAct={!readOnly}
-          gateReason="send messages"
-          title={readOnly ? undefined : "Quick replies & Bot (/)"}
-          className="h-9 w-9 shrink-0 p-0 text-amber-400 hover:text-amber-300 hover:bg-slate-800"
-          onClick={() => setQuickReplyModalOpen(true)}
-        >
-          <Zap className="h-4 w-4" />
-        </GatedButton>
+      {isRecording ? (
+        /* Active Recording Bar */
+        <div className="flex items-center justify-between gap-2 sm:gap-3 w-full bg-slate-900 border border-red-500/50 rounded-xl px-3 py-2 text-white">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+            </span>
+            <span className="text-xs font-medium text-red-400 shrink-0">Recording Voice…</span>
+            <span className="font-mono text-xs font-semibold text-white bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+              {formatDuration(recordingSeconds)}
+            </span>
+          </div>
 
-        {/* Start Flow Button (🔄) */}
-        <GatedButton
-          variant="ghost"
-          size="sm"
-          canAct={!readOnly}
-          gateReason="send messages"
-          title={readOnly ? undefined : "Start Flow / Bot (🔄)"}
-          className="h-9 w-9 shrink-0 p-0 text-blue-400 hover:text-blue-300 hover:bg-slate-800"
-          onClick={handleOpenFlows}
-        >
-          <GitBranch className="h-4 w-4" />
-        </GatedButton>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Discard */}
+            <button
+              type="button"
+              onClick={discardVoiceRecording}
+              title="Discard recording"
+              className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
 
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            readOnly
-              ? "Read-only — viewers can browse but not reply"
-              : sessionExpired
-                ? "Session expired - use a template"
-                : "Type a message or '/' for quick replies..."
-          }
-          disabled={sessionExpired || readOnly}
-          rows={1}
-          title={readOnly ? "Read-only — your role can't send messages" : undefined}
-          className={cn(
-            "flex-1 min-w-0 resize-none rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 sm:px-4 sm:py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-colors focus:border-primary/50",
-            (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
-          )}
-        />
+            {/* Stop & Review */}
+            <button
+              type="button"
+              onClick={stopVoiceRecordingForReview}
+              title="Stop & Review"
+              className="h-8 px-2.5 rounded-lg flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors border border-slate-700"
+            >
+              <Square className="h-3 w-3 fill-current text-amber-400" />
+              <span>Review</span>
+            </button>
 
-        <GatedButton
-          size="sm"
-          canAct={!readOnly}
-          gateReason="send messages"
-          disabled={(!text.trim() && !attachedMedia) || sessionExpired || sending}
-          onClick={handleSend}
-          className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary/90 disabled:opacity-40"
-        >
-          <Send className="h-4 w-4" />
-        </GatedButton>
-      </div>
+            {/* Quick Send Live */}
+            <Button
+              size="sm"
+              disabled={uploadingVoice}
+              onClick={handleQuickSendLive}
+              className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white gap-1 px-3 text-xs"
+            >
+              {uploadingVoice ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
+              <span>Send</span>
+            </Button>
+          </div>
+        </div>
+      ) : recordedBlob && previewAudioUrl ? (
+        /* Preview Recorded Audio Bar */
+        <div className="flex items-center justify-between gap-2 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={togglePreviewAudio}
+              className="h-8 w-8 shrink-0 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/30 transition-colors"
+            >
+              {isPlayingPreview ? (
+                <Pause className="h-4 w-4" />
+              ) : (
+                <Play className="h-4 w-4 ml-0.5" />
+              )}
+            </button>
+            <audio
+              ref={previewAudioElRef}
+              src={previewAudioUrl}
+              onEnded={() => setIsPlayingPreview(false)}
+              className="hidden"
+            />
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-200 truncate">
+                Voice Note Recorded
+              </p>
+              <p className="text-[11px] font-mono text-slate-400">
+                Duration: {formatDuration(recordingSeconds)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={discardVoiceRecording}
+              title="Discard recording"
+              className="h-8 w-8 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 flex items-center justify-center transition-colors"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+
+            <Button
+              size="sm"
+              disabled={uploadingVoice}
+              onClick={() => sendRecordedVoice()}
+              className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white gap-1 px-3 text-xs"
+            >
+              {uploadingVoice ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
+              <span>Send Voice</span>
+            </Button>
+          </div>
+        </div>
+      ) : (
+        /* Standard Composer Bar */
+        <div className="flex items-end gap-1.5 sm:gap-2 min-w-0 w-full">
+          {/* Quick Replies Button (⚡) */}
+          <GatedButton
+            variant="ghost"
+            size="sm"
+            canAct={!readOnly}
+            gateReason="send messages"
+            title={readOnly ? undefined : "Quick replies & Bot (/)"}
+            className="h-9 w-9 shrink-0 p-0 text-amber-400 hover:text-amber-300 hover:bg-slate-800"
+            onClick={() => setQuickReplyModalOpen(true)}
+          >
+            <Zap className="h-4 w-4" />
+          </GatedButton>
+
+          {/* Start Flow Button (🔄) */}
+          <GatedButton
+            variant="ghost"
+            size="sm"
+            canAct={!readOnly}
+            gateReason="send messages"
+            title={readOnly ? undefined : "Start Flow / Bot (🔄)"}
+            className="h-9 w-9 shrink-0 p-0 text-blue-400 hover:text-blue-300 hover:bg-slate-800"
+            onClick={handleOpenFlows}
+          >
+            <GitBranch className="h-4 w-4" />
+          </GatedButton>
+
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              readOnly
+                ? "Read-only — viewers can browse but not reply"
+                : sessionExpired
+                  ? "Session expired - use a template"
+                  : "Type a message or '/' for quick replies..."
+            }
+            disabled={sessionExpired || readOnly}
+            rows={1}
+            title={
+              readOnly ? "Read-only — your role can't send messages" : undefined
+            }
+            className={cn(
+              "flex-1 min-w-0 resize-none rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 sm:px-4 sm:py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-colors focus:border-primary/50",
+              (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
+            )}
+          />
+
+          {/* Voice Mic Button (🎙️) */}
+          <GatedButton
+            type="button"
+            variant="ghost"
+            size="sm"
+            canAct={!readOnly}
+            gateReason="send messages"
+            title="Record Voice Note (🎙️)"
+            disabled={sessionExpired || sending}
+            className="h-9 w-9 shrink-0 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-slate-800"
+            onClick={startVoiceRecording}
+          >
+            <Mic className="h-4 w-4" />
+          </GatedButton>
+
+          {/* Send Button */}
+          <GatedButton
+            size="sm"
+            canAct={!readOnly}
+            gateReason="send messages"
+            disabled={
+              (!text.trim() && !attachedMedia) || sessionExpired || sending
+            }
+            onClick={handleSend}
+            className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary/90 disabled:opacity-40"
+          >
+            <Send className="h-4 w-4" />
+          </GatedButton>
+        </div>
+      )}
 
       {/* Quick Replies Modal (⚡) */}
       <Dialog open={quickReplyModalOpen} onOpenChange={setQuickReplyModalOpen}>
