@@ -151,7 +151,7 @@ function renderTextWithLinks(text: string | null | undefined, isAgent: boolean) 
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             className={cn(
-              "underline underline-offset-2 font-medium transition-colors cursor-pointer",
+              "underline underline-offset-2 font-medium transition-colors cursor-pointer break-all [overflow-wrap:anywhere]",
               isAgent
                 ? "text-[#027eb5] hover:text-[#005c87] dark:text-blue-100 dark:hover:text-white"
                 : "text-[#027eb5] hover:text-[#005c87] dark:text-blue-400 dark:hover:text-blue-300"
@@ -307,7 +307,7 @@ export function MessageBubble({
   return (
     <div
       className={cn(
-        "flex flex-col",
+        "flex flex-col min-w-0 max-w-full",
         isAgent ? "items-end" : "items-start",
       )}
     >

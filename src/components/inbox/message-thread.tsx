@@ -747,11 +747,11 @@ export function MessageThread({
     : "Assign";
 
   return (
-    <div className={cn("flex flex-1 flex-col", DOODLE_BG_CLASSES)}>
+    <div className={cn("flex flex-1 flex-col min-w-0 w-full overflow-hidden", DOODLE_BG_CLASSES)}>
       {/* Header — solid bg-slate-900 sits on top of the doodle so the
           name/avatar/dropdowns stay legible. */}
-      <div className="flex items-center justify-between gap-2 border-b border-slate-800 bg-slate-900 px-3 py-3 sm:px-4">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-800 bg-slate-900 px-2.5 py-2.5 sm:px-4 sm:py-3 min-w-0 w-full">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-3">
           {/* Back-to-list button — mobile only. Hidden on lg+ where the
               conversation list is always visible next to the thread. */}
           {onBack && (
@@ -759,30 +759,29 @@ export function MessageThread({
               type="button"
               onClick={onBack}
               aria-label="Back to conversations"
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-slate-300 hover:bg-slate-800 hover:text-white lg:hidden"
+              className="flex h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 items-center justify-center rounded-md text-slate-300 hover:bg-slate-800 hover:text-white lg:hidden"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
           )}
           <div
             onClick={() => setMobileContactOpen(true)}
-            className="flex min-w-0 items-center gap-2 cursor-pointer group"
+            className="flex min-w-0 flex-1 items-center gap-2 cursor-pointer group"
             title="View contact info"
           >
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-white group-hover:bg-slate-600 transition-colors">
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 items-center justify-center rounded-full bg-slate-700 text-xs sm:text-sm font-medium text-white group-hover:bg-slate-600 transition-colors">
               {displayName.charAt(0).toUpperCase()}
             </div>
-            <div className="min-w-0">
-              <h2 className="truncate text-sm font-semibold text-white group-hover:text-primary transition-colors">{displayName}</h2>
-              <p className="truncate text-xs text-slate-400">{contact.phone}</p>
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-xs sm:text-sm font-semibold text-white group-hover:text-primary transition-colors">{displayName}</h2>
+              <p className="truncate text-[10px] sm:text-xs text-slate-400">{contact.phone}</p>
             </div>
           </div>
-          {/* Session timer badge — hidden on the narrowest phones so
-              the name + back arrow keep their room. */}
+          {/* Session timer badge — hidden on narrow mobile */}
           <Badge
             variant="outline"
             className={cn(
-              "ml-1 hidden gap-1 border-slate-700 text-[10px] sm:inline-flex sm:ml-2",
+              "ml-1 hidden gap-1 border-slate-700 text-[10px] md:inline-flex",
               sessionInfo.expired ? "text-red-400" : "text-primary"
             )}
           >
@@ -791,23 +790,20 @@ export function MessageThread({
           </Badge>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {/* Mobile Profile & Tags button */}
           <button
             type="button"
             onClick={() => setMobileContactOpen(true)}
             aria-label="Profile and tags"
             title="Profile & Tags"
-            className="inline-flex items-center gap-1.5 h-7 px-2 text-xs rounded-md border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white lg:hidden"
+            className="inline-flex items-center gap-1 h-7 px-2 text-xs rounded-md border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white shrink-0 lg:hidden"
           >
-            <TagIcon className="h-3 w-3 text-primary" />
-            <span className="text-[11px] font-medium">Profile & Tags</span>
+            <TagIcon className="h-3 w-3 text-primary shrink-0" />
+            <span className="text-[11px] font-medium hidden xs:inline">Tags</span>
           </button>
-          {/* Manual refresh — forces a refetch of the messages + the
-              conversation list (the parent bumps its resyncToken). Useful
-              when realtime missed an event or the agent just wants to be
-              sure nothing's stale. Only rendered when the parent wires
-              up `onRefresh`. */}
+
+          {/* Manual refresh */}
           {onRefresh && (
             <button
               type="button"
@@ -816,7 +812,7 @@ export function MessageThread({
               aria-label="Refresh conversation"
               title="Refresh"
               className={cn(
-                "inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-60",
+                "inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-60 shrink-0",
               )}
             >
               <RefreshCw
@@ -828,10 +824,10 @@ export function MessageThread({
           {/* Status dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger className={cn(
-              "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-slate-800",
+              "inline-flex items-center justify-center h-7 gap-1 px-1.5 sm:px-2 text-xs rounded-md hover:bg-slate-800 shrink-0",
               currentStatus?.color ?? "text-slate-400"
             )}>
-              {currentStatus?.label ?? "Status"}
+              <span className="text-[11px] sm:text-xs font-medium">{currentStatus?.label ?? "Status"}</span>
               <ChevronDown className="h-3 w-3" />
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -854,13 +850,14 @@ export function MessageThread({
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(
-                "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-slate-800",
+                "inline-flex items-center justify-center h-7 gap-1 px-1.5 sm:px-2 text-xs rounded-md hover:bg-slate-800 shrink-0",
                 assignedAgentId ? "text-primary" : "text-slate-400"
               )}
+              title={assignLabel}
             >
-              <UserPlus className="h-3 w-3" />
-              <span className="hidden sm:inline">{assignLabel}</span>
-              <ChevronDown className="h-3 w-3" />
+              <UserPlus className="h-3 w-3 shrink-0" />
+              <span className="hidden sm:inline text-xs">{assignLabel}</span>
+              <ChevronDown className="h-3 w-3 shrink-0" />
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
@@ -908,7 +905,7 @@ export function MessageThread({
       </div>
 
       {/* Messages Area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 w-full px-2.5 py-3 sm:px-4 sm:py-4">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />

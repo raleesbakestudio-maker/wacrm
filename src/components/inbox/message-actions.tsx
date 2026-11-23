@@ -79,17 +79,15 @@ export function MessageActions({
   return (
     <div
       className={cn(
-        "flex w-full",
+        "flex w-full min-w-0",
         isAgent ? "justify-end" : "justify-start",
       )}
       onContextMenu={handleContextMenu}
       onBlur={() => setTouchOpen(false)}
     >
-      {/* `min-w-0` lets this flex child actually respect the 75% cap.
-       *  Default `min-width: auto` lets content (a long quote preview,
-       *  an unbroken URL) push past the cap and shove the row past
-       *  100%, which used to bleed across into the contact-sidebar
-       *  area. See issue #165. */}
+      {/* `min-w-0` lets this flex child actually respect the cap.
+       *  Default `min-width: auto` lets content push past the cap and
+       *  bleed across into the viewport border. */}
       <div className="group/actions relative min-w-0 max-w-[88%] sm:max-w-[75%]">
         {children}
       <div
