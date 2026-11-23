@@ -394,6 +394,48 @@ export default function BroadcastDetailPage() {
         </div>
       )}
 
+      {/* Retry Failed / Incomplete Broadcast Option */}
+      {broadcast.status === 'failed' && recipients.some((r) => r.status === 'pending') && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-500/20 text-red-400">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white">
+                Incomplete Broadcast (ബാക്കിയുള്ള മെസ്സേജുകൾ അയച്ചിട്ടില്ല)
+              </p>
+              <p className="text-xs text-red-300">
+                {recipients.filter((r) => r.status === 'pending').length} contacts are still pending. Click retry to send remaining messages.
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={async () => {
+              try {
+                await sendScheduledBroadcastNow(broadcast.id);
+                toast.success('Broadcast sent successfully!');
+                await fetchData();
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : 'Failed to send broadcast');
+              }
+            }}
+            disabled={isSendingScheduled}
+            className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            {isSendingScheduled ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> Sending… ({scheduleProgress}%)
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-1.5" /> Retry Sending ({recipients.filter((r) => r.status === 'pending').length} Pending)
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
       {/* Stats — 6 cards: Total / Sent / Delivered / Read / Replied / Failed */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard

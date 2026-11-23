@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Contact, MessageTemplate } from '@/types';
 import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils';
+import { renderTemplateBody } from '@/lib/whatsapp/template-render';
 
 export type CustomFieldOperator = 'is' | 'is_not' | 'contains';
 
@@ -52,13 +53,7 @@ export interface UseBroadcastSendingReturn {
 /**
  * Render template body text by replacing {{1}}, {{2}}, etc. with resolved parameter values.
  */
-export function renderTemplateBody(body: string, params: string[]): string {
-  if (!body) return '';
-  return body.replace(/\{\{(\d+)\}\}/g, (_, raw) => {
-    const idx = Number(raw) - 1;
-    return params[idx] ?? `{{${raw}}}`;
-  });
-}
+export { renderTemplateBody } from '@/lib/whatsapp/template-render';
 
 /**
  * Meta rate-limit buffer. 10 per batch + 1 s pause matches the spec

@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/whatsapp/broadcast/cron",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/automations/cron",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/flows/cron",
+      "schedule": "* * * * *"
+    }
+  ]
+}

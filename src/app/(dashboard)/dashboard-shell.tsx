@@ -47,6 +47,18 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, router]);
 
+  // Periodic background cron heartbeat (every 60s) to trigger any scheduled broadcasts / automations
+  useEffect(() => {
+    if (!user) return;
+    const triggerCrons = () => {
+      void fetch("/api/whatsapp/broadcast/cron", { method: "POST" }).catch(() => {});
+      void fetch("/api/automations/cron", { method: "POST" }).catch(() => {});
+    };
+    triggerCrons();
+    const interval = setInterval(triggerCrons, 60000);
+    return () => clearInterval(interval);
+  }, [user]);
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-950">

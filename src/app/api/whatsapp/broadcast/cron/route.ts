@@ -8,7 +8,7 @@ import {
   isRecipientNotAllowedError,
   isValidE164,
 } from '@/lib/whatsapp/phone-utils';
-import { renderTemplateBody } from '@/hooks/use-broadcast-sending';
+import { renderTemplateBody } from '@/lib/whatsapp/template-render';
 
 const SEND_BATCH_SIZE = 10;
 const SEND_BATCH_DELAY_MS = 1000;
@@ -161,107 +161,124 @@ async function handleCron() {
         const convUpdates: { id: string; last_message_text: string; last_message_at: string }[] = [];
 
         for (const recipient of batch) {
-          const rawPhone = recipient.contact?.phone;
-          if (!rawPhone) {
-            failedCount++;
-            await admin
-              .from('broadcast_recipients')
-              .update({ status: 'failed', error_message: 'No phone number on contact' })
-              .eq('id', recipient.id);
+          // If already sent or delivered (e.g. from a prior run attempt), skip
+          if (['sent', 'delivered', 'read'].includes(recipient.status)) {
             continue;
           }
 
-          const sanitized = sanitizePhoneForMeta(rawPhone);
-          if (!isValidE164(sanitized)) {
-            failedCount++;
-            await admin
-              .from('broadcast_recipients')
-              .update({ status: 'failed', error_message: 'Invalid phone number format' })
-              .eq('id', recipient.id);
-            continue;
-          }
-
-          // Resolve variables for this recipient
-          const keys = Object.keys(variables).sort((a, b) => Number(a) - Number(b));
-          const params = keys.map((k) => {
-            const v = variables[k];
-            if (v?.type === 'field' && recipient.contact) {
-              const fieldMap: Record<string, string | undefined> = {
-                name: recipient.contact.name,
-                phone: recipient.contact.phone,
-                email: recipient.contact.email,
-                company: recipient.contact.company,
-              };
-              return fieldMap[v.value] || '';
+          try {
+            const rawPhone = recipient.contact?.phone;
+            if (!rawPhone) {
+              failedCount++;
+              await admin
+                .from('broadcast_recipients')
+                .update({ status: 'failed', error_message: 'No phone number on contact' })
+                .eq('id', recipient.id);
+              continue;
             }
-            return v?.value || '';
-          });
 
-          const variants = phoneVariants(sanitized);
-          let sentMessageId: string | null = null;
-          let lastError: string | null = null;
+            const sanitized = sanitizePhoneForMeta(rawPhone);
+            if (!isValidE164(sanitized)) {
+              failedCount++;
+              await admin
+                .from('broadcast_recipients')
+                .update({ status: 'failed', error_message: 'Invalid phone number format' })
+                .eq('id', recipient.id);
+              continue;
+            }
 
-          for (const variant of variants) {
-            try {
-              const result = await sendTemplateMessage({
-                phoneNumberId: config.phone_number_id,
-                accessToken,
-                to: variant,
-                templateName: broadcast.template_name,
-                language: broadcast.template_language || 'en_US',
-                template: templateRow ?? undefined,
-                params,
-              });
-              sentMessageId = result.messageId;
-              lastError = null;
-              break;
-            } catch (err) {
-              const errMsg = err instanceof Error ? err.message : 'Unknown error';
-              if (!isRecipientNotAllowedError(errMsg)) {
-                lastError = errMsg;
-                break;
+            // Resolve variables for this recipient
+            const keys = Object.keys(variables).sort((a, b) => Number(a) - Number(b));
+            const params = keys.map((k) => {
+              const v = variables[k];
+              if (v?.type === 'field' && recipient.contact) {
+                const fieldMap: Record<string, string | undefined> = {
+                  name: recipient.contact.name,
+                  phone: recipient.contact.phone,
+                  email: recipient.contact.email,
+                  company: recipient.contact.company,
+                };
+                return fieldMap[v.value] || '';
               }
-              lastError = errMsg;
-            }
-          }
+              return v?.value || '';
+            });
 
-          if (sentMessageId) {
-            await admin
-              .from('broadcast_recipients')
-              .update({
-                status: 'sent',
-                sent_at: new Date().toISOString(),
-                whatsapp_message_id: sentMessageId,
-                error_message: null,
-              })
-              .eq('id', recipient.id);
+            const variants = phoneVariants(sanitized);
+            let sentMessageId: string | null = null;
+            let lastError: string | null = null;
 
-            // Inbox Chat Sync
-            const convId = recipient.contact ? convMap.get(recipient.contact.id) : null;
-            if (convId) {
-              const rendered = renderTemplateBody(templateBody, params);
-              messageInserts.push({
-                conversation_id: convId,
-                sender_type: 'agent',
-                content_type: 'template',
-                content_text: rendered,
-                template_name: broadcast.template_name,
-                message_id: sentMessageId,
-                status: 'sent',
-              });
-              convUpdates.push({
-                id: convId,
-                last_message_text: rendered,
-                last_message_at: new Date().toISOString(),
-              });
+            for (const variant of variants) {
+              try {
+                const result = await sendTemplateMessage({
+                  phoneNumberId: config.phone_number_id,
+                  accessToken,
+                  to: variant,
+                  templateName: broadcast.template_name,
+                  language: broadcast.template_language || 'en_US',
+                  template: templateRow ?? undefined,
+                  params,
+                });
+                sentMessageId = result.messageId;
+                lastError = null;
+                break;
+              } catch (err) {
+                const errMsg = err instanceof Error ? err.message : 'Unknown error';
+                if (!isRecipientNotAllowedError(errMsg)) {
+                  lastError = errMsg;
+                  break;
+                }
+                lastError = errMsg;
+              }
             }
-          } else {
+
+            if (sentMessageId) {
+              await admin
+                .from('broadcast_recipients')
+                .update({
+                  status: 'sent',
+                  sent_at: new Date().toISOString(),
+                  whatsapp_message_id: sentMessageId,
+                  error_message: null,
+                })
+                .eq('id', recipient.id);
+
+              // Inbox Chat Sync
+              const convId = recipient.contact ? convMap.get(recipient.contact.id) : null;
+              if (convId) {
+                const rendered = renderTemplateBody(templateBody, params);
+                messageInserts.push({
+                  conversation_id: convId,
+                  sender_type: 'agent',
+                  content_type: 'template',
+                  content_text: rendered,
+                  template_name: broadcast.template_name,
+                  message_id: sentMessageId,
+                  status: 'sent',
+                });
+                convUpdates.push({
+                  id: convId,
+                  last_message_text: rendered,
+                  last_message_at: new Date().toISOString(),
+                });
+              }
+            } else {
+              failedCount++;
+              await admin
+                .from('broadcast_recipients')
+                .update({
+                  status: 'failed',
+                  error_message: lastError || 'Unknown error',
+                })
+                .eq('id', recipient.id);
+            }
+          } catch (recErr) {
+            console.error(`Error sending broadcast to recipient ${recipient.id}:`, recErr);
             failedCount++;
             await admin
               .from('broadcast_recipients')
               .update({
                 status: 'failed',
-                error_message: lastError || 'Unknown error',
+                error_message: recErr instanceof Error ? recErr.message : 'Send error',
               })
               .eq('id', recipient.id);
           }
@@ -286,7 +303,14 @@ async function handleCron() {
         }
       }
 
-      const finalStatus = failedCount === recipients.length ? 'failed' : 'sent';
+      // Check overall stats to set final broadcast status
+      const { count: totalSent } = await admin
+        .from('broadcast_recipients')
+        .select('*', { count: 'exact', head: true })
+        .eq('broadcast_id', broadcast.id)
+        .in('status', ['sent', 'delivered', 'read']);
+
+      const finalStatus = (totalSent ?? 0) > 0 ? 'sent' : 'failed';
       await admin
         .from('broadcasts')
         .update({ status: finalStatus, updated_at: new Date().toISOString() })
