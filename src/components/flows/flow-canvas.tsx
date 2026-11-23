@@ -159,11 +159,20 @@ function FlowNodeCard({ data, selected }: NodeProps) {
       <div className="mt-1 truncate font-mono text-[11px] text-slate-300">
         {node.node_key}
       </div>
-      {summary && (
+      {node.node_type === "send_message" && summary ? (
+        <div className="mt-2 rounded-md border border-emerald-500/25 bg-[#005c4b]/30 px-2.5 py-1.5 text-[11px] leading-snug text-emerald-100 shadow-sm">
+          <div className="line-clamp-3 whitespace-pre-wrap font-sans">
+            {summary}
+          </div>
+          <div className="mt-1 flex items-center justify-end font-mono text-[9px] text-emerald-300/70">
+            <span>✓✓</span>
+          </div>
+        </div>
+      ) : summary ? (
         <div className="mt-1 line-clamp-2 text-xs text-slate-400">
           {summary}
         </div>
-      )}
+      ) : null}
 
       {isMultiSlot && (
         <div className="mt-2 flex flex-col gap-1 border-t border-slate-800 pt-2">

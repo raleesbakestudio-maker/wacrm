@@ -6,6 +6,7 @@ import {
   isSuspending,
   isTerminal,
   evaluateConditionPredicate,
+  interpolateVars,
 } from "./engine";
 
 describe("matchReplyId", () => {
@@ -297,5 +298,45 @@ describe("evaluateConditionPredicate", () => {
         configValue: "anything",
       }),
     ).toBe(false);
+  });
+});
+
+describe("interpolateVars", () => {
+  it("interpolates {{vars.foo}} correctly", () => {
+    expect(interpolateVars("Hello {{vars.name}}!", { name: "Alice" })).toBe(
+      "Hello Alice!",
+    );
+  });
+
+  it("interpolates direct {{name}} and {{phone}}", () => {
+    expect(
+      interpolateVars("Hi {{name}}, your phone is {{phone}}", {
+        name: "Raliya",
+        phone: "9876543210",
+      }),
+    ).toBe("Hi Raliya, your phone is 9876543210");
+  });
+
+  it("interpolates {{contact.name}} and {{contact.first_name}}", () => {
+    expect(
+      interpolateVars("Dear {{contact.name}} ({{first_name}})", {
+        "contact.name": "Raliya Shabeer",
+        first_name: "Raliya",
+      }),
+    ).toBe("Dear Raliya Shabeer (Raliya)");
+  });
+
+  it("handles whitespace inside braces like {{ name }}", () => {
+    expect(interpolateVars("Hello {{ name }}!", { name: "Bob" })).toBe(
+      "Hello Bob!",
+    );
+  });
+
+  it("renders missing variables as empty string", () => {
+    expect(interpolateVars("Hello {{unknown}}!", {})).toBe("Hello !");
+  });
+
+  it("returns empty string for empty template", () => {
+    expect(interpolateVars("", { name: "Test" })).toBe("");
   });
 });

@@ -512,16 +512,28 @@ async function evaluateConditionNode(
 }
 
 /**
- * Tiny `{{vars.foo}}` interpolation. Used by send_message + collect_input
- * prompt text so a captured `name` can show up in the next prompt
- * ("Thanks {{vars.name}}, what's your email?"). Missing vars render as
- * empty string — the same behavior as the automations engine.
+ * Variable interpolation. Used by send_message + collect_input + send_media
+ * prompt and caption text. Supports:
+ *   - {{name}}, {{first_name}}, {{phone}}
+ *   - {{contact.name}}, {{contact.phone}}, etc.
+ *   - {{vars.foo}} or {{foo}}
+ * Missing vars render as empty string — the same behavior as the automations engine.
  */
-function interpolateVars(template: string, vars: Record<string, unknown>): string {
+export function interpolateVars(
+  template: string,
+  vars: Record<string, unknown>,
+): string {
   if (!template) return "";
-  return template.replace(/\{\{vars\.([a-zA-Z0-9_]+)\}\}/g, (_, key) => {
-    const v = vars[key];
-    return v === undefined || v === null ? "" : String(v);
+  return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, rawKey: string) => {
+    if (vars[rawKey] !== undefined && vars[rawKey] !== null) {
+      return String(vars[rawKey]);
+    }
+    const parts = rawKey.split(".");
+    const prop = parts[parts.length - 1];
+    if (vars[prop] !== undefined && vars[prop] !== null) {
+      return String(vars[prop]);
+    }
+    return "";
   });
 }
 
@@ -557,6 +569,35 @@ async function advanceFromNodeKey(
   let currentKey: string | null = startNodeKey;
   // Guard against cycles/loops in auto-advancing nodes (e.g. send_message pointing back to start)
   const visited = new Set<string>();
+
+  // Ensure contact details are populated in runtime vars for interpolation
+  let runtimeVars: Record<string, unknown> = { ...(run.vars ?? {}) };
+  if (run.contact_id && (!runtimeVars.name || !runtimeVars.phone)) {
+    try {
+      const { data: contact } = await db
+        .from("contacts")
+        .select("name, phone, first_name")
+        .eq("id", run.contact_id)
+        .maybeSingle();
+      if (contact) {
+        const firstName =
+          contact.first_name ||
+          (contact.name ? contact.name.trim().split(/\s+/)[0] : "");
+        runtimeVars = {
+          name: contact.name || "",
+          first_name: firstName,
+          phone: contact.phone || "",
+          "contact.name": contact.name || "",
+          "contact.first_name": firstName,
+          "contact.phone": contact.phone || "",
+          ...runtimeVars,
+        };
+      }
+    } catch {
+      // Non-critical: continue with existing vars
+    }
+  }
+
   for (let safety = 0; safety < 64; safety += 1) {
     if (!currentKey) {
       // Natural completion when a terminal or last node has no next_node_key
@@ -597,10 +638,10 @@ async function advanceFromNodeKey(
       try {
         const { whatsapp_message_id } = await engineSendText({
           accountId: run.account_id,
-    userId: run.user_id,
+          userId: run.user_id,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
-          text: interpolateVars(cfg.text, run.vars),
+          text: interpolateVars(cfg.text, runtimeVars),
         });
         await logEvent(db, run.id, "message_sent", node.node_key, {
           node_type: "send_message",
@@ -628,7 +669,7 @@ async function advanceFromNodeKey(
           kind: cfg.media_type,
           link: cfg.media_url,
           caption: cfg.caption
-            ? interpolateVars(cfg.caption, run.vars)
+            ? interpolateVars(cfg.caption, runtimeVars)
             : undefined,
           filename: cfg.filename,
         });
@@ -655,10 +696,10 @@ async function advanceFromNodeKey(
       try {
         const { whatsapp_message_id } = await engineSendText({
           accountId: run.account_id,
-    userId: run.user_id,
+          userId: run.user_id,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
-          text: interpolateVars(cfg.prompt_text, run.vars),
+          text: interpolateVars(cfg.prompt_text, runtimeVars),
         });
         await logEvent(db, run.id, "message_sent", node.node_key, {
           node_type: "collect_input",
@@ -1102,6 +1143,32 @@ async function startNewRun(
   input: DispatchInboundInput,
   nodes: Map<string, FlowNodeRow>,
 ): Promise<DispatchInboundResult> {
+  let initialVars: Record<string, unknown> = {};
+  if (input.contactId) {
+    try {
+      const { data: contact } = await db
+        .from("contacts")
+        .select("name, phone, first_name")
+        .eq("id", input.contactId)
+        .maybeSingle();
+      if (contact) {
+        const firstName =
+          contact.first_name ||
+          (contact.name ? contact.name.trim().split(/\s+/)[0] : "");
+        initialVars = {
+          name: contact.name || "",
+          first_name: firstName,
+          phone: contact.phone || "",
+          "contact.name": contact.name || "",
+          "contact.first_name": firstName,
+          "contact.phone": contact.phone || "",
+        };
+      }
+    } catch {
+      // Non-critical: continue with empty vars
+    }
+  }
+
   // INSERT — partial unique index `idx_one_active_run_per_contact`
   // catches concurrent inserts with 23505. We catch and return as
   // consumed:true (the parallel webhook handles it).
@@ -1121,6 +1188,7 @@ async function startNewRun(
       conversation_id: input.conversationId,
       status: "active",
       current_node_key: flow.entry_node_id,
+      vars: initialVars,
     })
     .select("*")
     .maybeSingle();
@@ -1192,6 +1260,32 @@ export async function startFlowForConversation(args: {
     return { ok: false, error: "Flow has no valid entry node" };
   }
 
+  let initialVars: Record<string, unknown> = {};
+  if (args.contactId) {
+    try {
+      const { data: contact } = await db
+        .from("contacts")
+        .select("name, phone, first_name")
+        .eq("id", args.contactId)
+        .maybeSingle();
+      if (contact) {
+        const firstName =
+          contact.first_name ||
+          (contact.name ? contact.name.trim().split(/\s+/)[0] : "");
+        initialVars = {
+          name: contact.name || "",
+          first_name: firstName,
+          phone: contact.phone || "",
+          "contact.name": contact.name || "",
+          "contact.first_name": firstName,
+          "contact.phone": contact.phone || "",
+        };
+      }
+    } catch {
+      // Non-critical
+    }
+  }
+
   const { data: inserted, error: insErr } = await db
     .from("flow_runs")
     .insert({
@@ -1202,6 +1296,7 @@ export async function startFlowForConversation(args: {
       conversation_id: args.conversationId,
       status: "active",
       current_node_key: flow.entry_node_id,
+      vars: initialVars,
     })
     .select("*")
     .maybeSingle();

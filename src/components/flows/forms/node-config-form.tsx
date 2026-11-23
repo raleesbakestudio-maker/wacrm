@@ -24,9 +24,10 @@
  * renders the advanced rows.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Loader2,
+  MessageCircle,
   Paperclip,
   Plus,
   Trash2,
@@ -37,6 +38,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -77,20 +79,12 @@ export function NodeConfigForm({
 
     case "send_message":
       return (
-        <>
-          <TextRow
-            label="Text sent to the customer"
-            value={(cfg as { text?: string }).text ?? ""}
-            onChange={(v) => onUpdateConfig({ text: v })}
-          />
-          <NextNodeRow
-            value={(cfg as { next_node_key?: string }).next_node_key ?? ""}
-            allNodes={allNodes}
-            currentKey={node.node_key}
-            onChange={(v) => onUpdateConfig({ next_node_key: v })}
-            label="Advances to"
-          />
-        </>
+        <SendMessageForm
+          cfg={cfg as SendMessageCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
       );
 
     case "send_buttons":
@@ -214,6 +208,316 @@ export function NodeConfigForm({
         </p>
       );
   }
+}
+
+// ============================================================
+// send_message
+// ============================================================
+
+interface SendMessageCfg {
+  text?: string;
+  next_node_key?: string;
+}
+
+function renderWhatsAppPreview(rawText: string) {
+  if (!rawText || !rawText.trim()) {
+    return (
+      <span className="italic text-emerald-200/50">
+        Type your message above to see preview here...
+      </span>
+    );
+  }
+
+  // Tokenize for {{var}}, *bold*, _italic_, ~strike~
+  const tokens = rawText.split(
+    /(\{\{[^}]+\}\}|\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~)/g,
+  );
+
+  return tokens.map((token, i) => {
+    if (token.startsWith("{{") && token.endsWith("}}")) {
+      const varKey = token.slice(2, -2).trim();
+      const label =
+        varKey === "name" || varKey === "contact.name"
+          ? "Raliya Shabeer"
+          : varKey === "first_name" || varKey === "contact.first_name"
+            ? "Raliya"
+            : varKey === "phone" || varKey === "contact.phone"
+              ? "+91 98765 43210"
+              : `[${varKey}]`;
+      return (
+        <span
+          key={i}
+          className="mx-0.5 inline-block rounded border border-amber-400/40 bg-amber-400/25 px-1 py-0.5 text-[11px] font-medium text-amber-200"
+          title={`Dynamic variable: ${token}`}
+        >
+          {label}
+        </span>
+      );
+    }
+    if (token.startsWith("*") && token.endsWith("*") && token.length > 2) {
+      return (
+        <strong key={i} className="font-bold text-white">
+          {token.slice(1, -1)}
+        </strong>
+      );
+    }
+    if (token.startsWith("_") && token.endsWith("_") && token.length > 2) {
+      return (
+        <em key={i} className="italic text-emerald-100">
+          {token.slice(1, -1)}
+        </em>
+      );
+    }
+    if (token.startsWith("~") && token.endsWith("~") && token.length > 2) {
+      return (
+        <del key={i} className="text-emerald-200/70 line-through">
+          {token.slice(1, -1)}
+        </del>
+      );
+    }
+    return <span key={i}>{token}</span>;
+  });
+}
+
+function SendMessageForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: SendMessageCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const text = cfg.text ?? "";
+
+  // Collect any variables captured by collect_input nodes in this flow
+  const collectedVars = useMemo(() => {
+    const list: string[] = [];
+    for (const n of allNodes) {
+      if (n.node_type === "collect_input") {
+        const vk = (n.config as { var_key?: string })?.var_key;
+        if (vk && vk.trim() && !list.includes(vk.trim())) {
+          list.push(vk.trim());
+        }
+      }
+    }
+    return list;
+  }, [allNodes]);
+
+  const insertAtCursor = useCallback(
+    (tag: string) => {
+      const el = textareaRef.current;
+      if (!el) {
+        onUpdateConfig({ text: text + tag });
+        return;
+      }
+      const start = el.selectionStart ?? text.length;
+      const end = el.selectionEnd ?? text.length;
+      const updated = text.slice(0, start) + tag + text.slice(end);
+      onUpdateConfig({ text: updated });
+
+      setTimeout(() => {
+        el.focus();
+        el.setSelectionRange(start + tag.length, start + tag.length);
+      }, 0);
+    },
+    [text, onUpdateConfig],
+  );
+
+  const wrapSelection = useCallback(
+    (wrapper: string) => {
+      const el = textareaRef.current;
+      if (!el) return;
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const selected = text.slice(start, end) || "text";
+      const wrapped = `${wrapper}${selected}${wrapper}`;
+      const updated = text.slice(0, start) + wrapped + text.slice(end);
+      onUpdateConfig({ text: updated });
+
+      setTimeout(() => {
+        el.focus();
+        el.setSelectionRange(
+          start + wrapper.length,
+          start + wrapper.length + selected.length,
+        );
+      }, 0);
+    },
+    [text, onUpdateConfig],
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* 1. Header & Textarea */}
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <label className="text-xs font-semibold text-slate-200">
+            WhatsApp Message Text
+          </label>
+          <span className="text-[11px] text-slate-400">
+            {text.length} characters
+          </span>
+        </div>
+
+        {/* Formatting & Emoji toolbar */}
+        <div className="flex flex-wrap items-center gap-1.5 rounded-t-lg border border-b-0 border-slate-700 bg-slate-800/90 px-2.5 py-1.5">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+            Format:
+          </span>
+          <button
+            type="button"
+            onClick={() => wrapSelection("*")}
+            className="rounded px-1.5 py-0.5 text-xs font-bold text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
+            title="Bold (*text*)"
+          >
+            B
+          </button>
+          <button
+            type="button"
+            onClick={() => wrapSelection("_")}
+            className="rounded px-1.5 py-0.5 text-xs italic text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
+            title="Italic (_text_)"
+          >
+            I
+          </button>
+          <button
+            type="button"
+            onClick={() => wrapSelection("~")}
+            className="rounded px-1.5 py-0.5 text-xs line-through text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
+            title="Strikethrough (~text~)"
+          >
+            S
+          </button>
+          <button
+            type="button"
+            onClick={() => wrapSelection("```")}
+            className="rounded px-1.5 py-0.5 font-mono text-[11px] text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
+            title="Monospace (```text```)"
+          >
+            {"</>"}
+          </button>
+
+          <span className="mx-1 h-3.5 w-px bg-slate-700" />
+
+          <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+            Emoji:
+          </span>
+          {["👋", "🎂", "🍰", "✨", "🙏", "✅", "❤️"].map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => insertAtCursor(` ${emoji} `)}
+              className="rounded px-1 py-0.5 text-xs transition-transform hover:scale-125"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+
+        {/* WhatsApp multiline message editor */}
+        <Textarea
+          ref={textareaRef}
+          value={text}
+          onChange={(e) => onUpdateConfig({ text: e.target.value })}
+          rows={5}
+          placeholder="Type your WhatsApp message here... (use Enter for new line)"
+          className="min-h-[120px] rounded-t-none border-slate-700 bg-slate-900 font-sans text-xs leading-relaxed text-slate-100 placeholder:text-slate-500 focus:border-emerald-500"
+        />
+      </div>
+
+      {/* 2. Variables Section */}
+      <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-200">
+            Insert Dynamic Variables
+          </span>
+          <span className="text-[10px] text-slate-400">
+            Auto-replaced per student
+          </span>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => insertAtCursor("{{name}}")}
+            className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-300 transition-colors hover:bg-amber-500/25 active:scale-95"
+            title="Inserts student's full name"
+          >
+            <span className="font-bold text-amber-400">+</span> 👤 Name (<code>{"{{name}}"}</code>)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => insertAtCursor("{{first_name}}")}
+            className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-300 transition-colors hover:bg-amber-500/25 active:scale-95"
+            title="Inserts student's first name only"
+          >
+            <span className="font-bold text-amber-400">+</span> 🏷️ First Name (<code>{"{{first_name}}"}</code>)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => insertAtCursor("{{phone}}")}
+            className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-300 transition-colors hover:bg-amber-500/25 active:scale-95"
+            title="Inserts student's WhatsApp phone number"
+          >
+            <span className="font-bold text-amber-400">+</span> 📱 Phone (<code>{"{{phone}}"}</code>)
+          </button>
+
+          {collectedVars.map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => insertAtCursor(`{{vars.${v}}}`)}
+              className="inline-flex items-center gap-1 rounded-md border border-teal-500/40 bg-teal-500/15 px-2.5 py-1 text-xs font-medium text-teal-300 transition-colors hover:bg-teal-500/25 active:scale-95"
+              title={`Inserts captured variable ${v}`}
+            >
+              <span className="font-bold text-teal-400">+</span> 📥 Captured (<code>{`{{vars.${v}}}`}</code>)
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. Live WhatsApp Message Bubble Preview */}
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+            <MessageCircle className="h-3.5 w-3.5" />
+            <span>WhatsApp Message Preview</span>
+          </div>
+          <span className="text-[10px] text-slate-500">Live preview</span>
+        </div>
+
+        {/* WhatsApp Chat Wallpaper Preview Box */}
+        <div className="rounded-xl border border-slate-800 bg-[#0b141a] p-3.5 shadow-inner">
+          <div className="flex justify-end">
+            {/* Outgoing WhatsApp chat bubble */}
+            <div className="relative max-w-[90%] rounded-2xl rounded-tr-none bg-[#005c4b] px-3.5 py-2.5 text-white shadow-md">
+              <div className="whitespace-pre-wrap break-words font-sans text-xs leading-relaxed text-[#e9edef]">
+                {renderWhatsAppPreview(text)}
+              </div>
+              <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-emerald-200/70">
+                <span>10:30 AM</span>
+                <span className="font-bold text-[#53bdeb]">✓✓</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Next Node */}
+      <NextNodeRow
+        value={cfg.next_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label="After sending, advances to"
+      />
+    </div>
+  );
 }
 
 // ============================================================
