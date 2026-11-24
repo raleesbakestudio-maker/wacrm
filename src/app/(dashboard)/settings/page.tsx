@@ -5,32 +5,26 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Settings,
   MessageSquare,
-  Tag,
   User,
   Palette,
   UsersRound,
-  Zap,
   Database,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { TemplateManager } from '@/components/settings/template-manager';
-import { TagManager } from '@/components/settings/tag-manager';
 import { ProfileForm } from '@/components/settings/profile-form';
 import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { MembersTab } from '@/components/settings/members-tab';
-import { QuickRepliesTab } from '@/components/settings/quick-replies-tab';
 import { DataRetentionTab } from '@/components/settings/data-retention-tab';
 
 const TAB_VALUES = [
   'profile',
   'members',
   'whatsapp',
-  'replies',
   'templates',
-  'tags',
   'data',
   'appearance',
 ] as const;
@@ -53,13 +47,23 @@ export default function SettingsPage() {
   const lastSyncedQueryTabRef = useRef<string | null>(queryTab);
 
   useEffect(() => {
+    // Backward compatibility redirects if user visits old tab bookmarks
+    if (queryTab === 'replies' || queryTab === 'quick_replies') {
+      router.replace('/automations?tab=replies');
+      return;
+    }
+    if (queryTab === 'tags') {
+      router.replace('/contacts?tab=tags');
+      return;
+    }
+
     if (queryTab !== lastSyncedQueryTabRef.current) {
       lastSyncedQueryTabRef.current = queryTab;
       if (isTabValue(queryTab) && queryTab !== tab) {
         setTab(queryTab);
       }
     }
-  }, [queryTab, tab]);
+  }, [queryTab, tab, router]);
 
   // Keep active tab visible in horizontal scroll on mobile
   useEffect(() => {
@@ -86,7 +90,7 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">Settings</h1>
         <p className="text-sm text-slate-400 mt-1">
-          Manage your profile, team & staff members, WhatsApp® integration, message templates, and tags.
+          Manage your profile, team & staff members, WhatsApp® integration, message templates, and account preferences.
         </p>
       </div>
 
@@ -115,25 +119,11 @@ export default function SettingsPage() {
               WhatsApp Config
             </TabsTrigger>
             <TabsTrigger
-              value="replies"
-              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-            >
-              <Zap className="size-4 text-amber-400" />
-              Quick Replies & Bot
-            </TabsTrigger>
-            <TabsTrigger
               value="templates"
               className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
             >
               <MessageSquare className="size-4" />
               Templates
-            </TabsTrigger>
-            <TabsTrigger
-              value="tags"
-              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-            >
-              <Tag className="size-4" />
-              Tags
             </TabsTrigger>
             <TabsTrigger
               value="data"
@@ -170,16 +160,8 @@ export default function SettingsPage() {
           {tab === 'whatsapp' && <WhatsAppConfig />}
         </TabsContent>
 
-        <TabsContent value="replies">
-          {tab === 'replies' && <QuickRepliesTab />}
-        </TabsContent>
-
         <TabsContent value="templates">
           {tab === 'templates' && <TemplateManager />}
-        </TabsContent>
-
-        <TabsContent value="tags">
-          {tab === 'tags' && <TagManager />}
         </TabsContent>
 
         <TabsContent value="data">

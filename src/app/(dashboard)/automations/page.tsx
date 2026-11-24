@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useState, useRef } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import {
   Zap,
@@ -16,6 +16,7 @@ import {
   Users,
   PhoneCall,
   Loader2,
+  Bot,
 } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
@@ -39,6 +40,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { QuickRepliesTab } from "@/components/settings/quick-replies-tab"
 import { AUTOMATION_TEMPLATES, type TemplateSlug } from "@/lib/automations/templates"
 import { triggerMeta, formatRelative } from "@/lib/automations/trigger-meta"
 import { cn } from "@/lib/utils"
@@ -59,11 +62,39 @@ const TEMPLATE_ICON: Record<TemplateSlug, typeof Zap> = {
 
 export default function AutomationsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const canCreate = useCan("send-messages")
   const [automations, setAutomations] = useState<Automation[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Automation | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  const queryTab = searchParams.get("tab")
+  const [tab, setTab] = useState<"workflows" | "replies">(() =>
+    queryTab === "replies" || queryTab === "quick_replies" ? "replies" : "workflows"
+  )
+  const lastSyncedQueryTabRef = useRef<string | null>(queryTab)
+
+  useEffect(() => {
+    if (queryTab !== lastSyncedQueryTabRef.current) {
+      lastSyncedQueryTabRef.current = queryTab
+      if (queryTab === "replies" || queryTab === "quick_replies") {
+        setTab("replies")
+      } else if (queryTab === "workflows") {
+        setTab("workflows")
+      }
+    }
+  }, [queryTab])
+
+  const onTabChange = (next: "workflows" | "replies") => {
+    setTab(next)
+    lastSyncedQueryTabRef.current = next
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href)
+      url.searchParams.set("tab", next)
+      window.history.replaceState(null, "", url.toString())
+    }
+  }
 
   async function load() {
     try {
@@ -135,97 +166,129 @@ export default function AutomationsPage() {
     router.push(`/automations/new?template=${slug}`)
   }
 
-  if (error) {
-    return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-red-400">{error}</p>
-        <Button variant="outline" onClick={() => window.location.reload()}>
-          Retry
-        </Button>
-      </div>
-    )
-  }
-
-  if (automations === null) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    )
-  }
-
-  const showTemplates = automations.length < 3
+  const showTemplates = automations && automations.length < 3
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Automations</h1>
-          <p className="mt-1 text-sm text-slate-400">
-            Build workflows that react to WhatsApp® events automatically.
-          </p>
-        </div>
-        <GatedButton
-          canAct={canCreate}
-          gateReason="create automations"
-          onClick={() => router.push("/automations/new")}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          Create Automation
-        </GatedButton>
+      <div>
+        <h1 className="text-2xl font-bold text-white">Automations & Bots</h1>
+        <p className="mt-1 text-sm text-slate-400">
+          Build event-driven workflows, auto-reply chatbot rules, and reusable quick replies.
+        </p>
       </div>
 
-      {showTemplates && (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold text-slate-300">Quick-start templates</h2>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {TEMPLATE_ORDER.map((slug) => {
-              const t = AUTOMATION_TEMPLATES[slug]
-              const Icon = TEMPLATE_ICON[slug]
-              return (
-                <button
-                  key={slug}
-                  onClick={() => startFromTemplate(slug)}
-                  className="group flex flex-col items-start rounded-xl border border-slate-800 bg-slate-900 p-4 text-left transition-colors hover:border-primary/50 hover:bg-slate-900/80"
-                >
-                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary/15">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="text-sm font-semibold text-white">{t.name}</div>
-                  <p className="mt-1 text-xs text-slate-400">{t.description}</p>
-                </button>
-              )
-            })}
-          </div>
-        </section>
-      )}
+      <Tabs value={tab} onValueChange={(v) => onTabChange(v as "workflows" | "replies")} className="w-full">
+        <TabsList className="bg-slate-900 border border-slate-800">
+          <TabsTrigger
+            value="workflows"
+            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+          >
+            <Zap className="h-4 w-4 mr-2" />
+            Workflows
+          </TabsTrigger>
+          <TabsTrigger
+            value="replies"
+            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+          >
+            <Bot className="h-4 w-4 mr-2 text-amber-400" />
+            Quick Replies & Bot
+          </TabsTrigger>
+        </TabsList>
 
-      {automations.length === 0 ? (
-        <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 bg-slate-900/40">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <Zap className="h-6 w-6 text-primary" />
+        <TabsContent value="workflows" className="space-y-6 mt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-white">Event Workflows</h2>
+              <p className="mt-0.5 text-sm text-slate-400">
+                React to WhatsApp® events and incoming messages automatically.
+              </p>
+            </div>
+            <GatedButton
+              canAct={canCreate}
+              gateReason="create automations"
+              onClick={() => router.push("/automations/new")}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Create Automation
+            </GatedButton>
           </div>
-          <p className="mt-3 text-sm font-medium text-white">No automations yet</p>
-          <p className="mt-1 text-xs text-slate-400">
-            Pick a template above or create one from scratch.
-          </p>
-        </div>
-      ) : (
-        <ul className="space-y-3">
-          {automations.map((a) => (
-            <AutomationCard
-              key={a.id}
-              automation={a}
-              onToggle={(next) => toggleActive(a, next)}
-              onEdit={() => router.push(`/automations/${a.id}/edit`)}
-              onDuplicate={() => duplicate(a)}
-              onLogs={() => router.push(`/automations/${a.id}/logs`)}
-              onDelete={() => setPendingDelete(a)}
-            />
-          ))}
-        </ul>
-      )}
+
+          {error && (
+            <div className="flex h-64 flex-col items-center justify-center gap-2">
+              <p className="text-sm text-red-400">{error}</p>
+              <Button variant="outline" onClick={() => load()}>
+                Retry
+              </Button>
+            </div>
+          )}
+
+          {!error && automations === null && (
+            <div className="flex h-64 items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          )}
+
+          {!error && automations !== null && (
+            <>
+              {showTemplates && (
+                <section>
+                  <h2 className="mb-3 text-sm font-semibold text-slate-300">Quick-start templates</h2>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {TEMPLATE_ORDER.map((slug) => {
+                      const t = AUTOMATION_TEMPLATES[slug]
+                      const Icon = TEMPLATE_ICON[slug]
+                      return (
+                        <button
+                          key={slug}
+                          onClick={() => startFromTemplate(slug)}
+                          className="group flex flex-col items-start rounded-xl border border-slate-800 bg-slate-900 p-4 text-left transition-colors hover:border-primary/50 hover:bg-slate-900/80"
+                        >
+                          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary/15">
+                            <Icon className="h-5 w-5" />
+                          </div>
+                          <div className="text-sm font-semibold text-white">{t.name}</div>
+                          <p className="mt-1 text-xs text-slate-400">{t.description}</p>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {automations.length === 0 ? (
+                <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 bg-slate-900/40">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+                    <Zap className="h-6 w-6 text-primary" />
+                  </div>
+                  <p className="mt-3 text-sm font-medium text-white">No automations yet</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Pick a template above or create one from scratch.
+                  </p>
+                </div>
+              ) : (
+                <ul className="space-y-3">
+                  {automations.map((a) => (
+                    <AutomationCard
+                      key={a.id}
+                      automation={a}
+                      onToggle={(next) => toggleActive(a, next)}
+                      onEdit={() => router.push(`/automations/${a.id}/edit`)}
+                      onDuplicate={() => duplicate(a)}
+                      onLogs={() => router.push(`/automations/${a.id}/logs`)}
+                      onDelete={() => setPendingDelete(a)}
+                    />
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="replies" className="space-y-6 mt-6">
+          {tab === "replies" && <QuickRepliesTab />}
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={!!pendingDelete} onOpenChange={(v) => !v && setPendingDelete(null)}>
         <DialogContent>

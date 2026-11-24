@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
@@ -57,6 +58,7 @@ import { ImportModal } from '@/components/contacts/import-modal';
 import { TagManager } from '@/components/settings/tag-manager';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
 interface ContactWithTags extends Contact {
@@ -66,6 +68,13 @@ interface ContactWithTags extends Contact {
 export default function ContactsPage() {
   const supabase = createClient();
   const canEdit = useCan('send-messages');
+  const searchParams = useSearchParams();
+
+  const queryTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<'contacts' | 'tags'>(() =>
+    queryTab === 'tags' ? 'tags' : 'contacts'
+  );
+  const lastSyncedQueryTabRef = useRef<string | null>(queryTab);
 
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
   const [loading, setLoading] = useState(true);
@@ -239,6 +248,29 @@ export default function ContactsPage() {
   useEffect(() => {
     fetchContacts();
   }, [fetchContacts]);
+
+  useEffect(() => {
+    if (queryTab !== lastSyncedQueryTabRef.current) {
+      lastSyncedQueryTabRef.current = queryTab;
+      if (queryTab === 'tags' || queryTab === 'contacts') {
+        setActiveTab(queryTab);
+      }
+    }
+  }, [queryTab]);
+
+  const onTabChange = (next: 'contacts' | 'tags') => {
+    setActiveTab(next);
+    lastSyncedQueryTabRef.current = next;
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', next);
+      window.history.replaceState(null, '', url.toString());
+    }
+    if (next === 'contacts') {
+      fetchTags();
+      fetchContacts();
+    }
+  };
 
   function openAddForm() {
     setEditContact(null);
@@ -452,67 +484,87 @@ export default function ContactsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Contacts
+            Contacts & Audience
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-            Manage your contact list. {totalCount > 0 && `${totalCount} total contacts.`}
+            Manage your contact list and customer segmentation tags. {totalCount > 0 && `${totalCount} total contacts.`}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          {/* Export CSV Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            disabled={exporting || loading || totalCount === 0}
-            className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm h-8 sm:h-9 rounded-xl shadow-xs"
-            title="Export contacts as CSV"
-          >
-            {exporting ? (
-              <Loader2 className="size-3.5 sm:size-4 animate-spin text-emerald-600 dark:text-primary" />
-            ) : (
-              <Download className="size-3.5 sm:size-4 text-emerald-600 dark:text-emerald-400" />
-            )}
-            <span className="ml-1.5 font-medium">Export</span>
-          </Button>
-
-          {/* Tags Manager Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setTagManagerOpen(true)}
-            className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm h-8 sm:h-9 rounded-xl shadow-xs"
-          >
-            <TagIcon className="size-3.5 sm:size-4 text-slate-500 dark:text-slate-400" />
-            <span className="ml-1.5 hidden xs:inline font-medium">Tags</span>
-          </Button>
-
-          {/* Import Contacts */}
-          <GatedButton
-            variant="outline"
-            size="sm"
-            canAct={canEdit}
-            gateReason="add or import contacts"
-            onClick={() => setImportOpen(true)}
-            className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm h-8 sm:h-9 rounded-xl shadow-xs"
-          >
-            <Upload className="size-3.5 sm:size-4 text-slate-500 dark:text-slate-400" />
-            <span className="ml-1.5 hidden xs:inline font-medium">Import</span>
-          </GatedButton>
-
-          {/* Add Contact */}
-          <GatedButton
-            size="sm"
-            canAct={canEdit}
-            gateReason="add or import contacts"
-            onClick={openAddForm}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs sm:text-sm h-8 sm:h-9 rounded-xl shadow-xs dark:bg-primary dark:hover:bg-primary/90 dark:text-primary-foreground"
-          >
-            <Plus className="size-3.5 sm:size-4" />
-            <span className="ml-1">Add Contact</span>
-          </GatedButton>
-        </div>
       </div>
+
+      <Tabs value={activeTab} onValueChange={(v) => onTabChange(v as 'contacts' | 'tags')} className="w-full">
+        <TabsList className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <TabsTrigger
+            value="contacts"
+            className="data-active:bg-white dark:data-active:bg-slate-800 data-active:text-slate-900 dark:data-active:text-primary text-slate-600 dark:text-slate-400"
+          >
+            <Users className="size-4 mr-2" />
+            All Contacts
+          </TabsTrigger>
+          <TabsTrigger
+            value="tags"
+            className="data-active:bg-white dark:data-active:bg-slate-800 data-active:text-slate-900 dark:data-active:text-primary text-slate-600 dark:text-slate-400"
+          >
+            <TagIcon className="size-4 mr-2" />
+            Manage Tags
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="contacts" className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
+          <div className="flex justify-end items-center gap-1.5 sm:gap-2">
+            {/* Export CSV Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              disabled={exporting || loading || totalCount === 0}
+              className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm h-8 sm:h-9 rounded-xl shadow-xs"
+              title="Export contacts as CSV"
+            >
+              {exporting ? (
+                <Loader2 className="size-3.5 sm:size-4 animate-spin text-emerald-600 dark:text-primary" />
+              ) : (
+                <Download className="size-3.5 sm:size-4 text-emerald-600 dark:text-emerald-400" />
+              )}
+              <span className="ml-1.5 font-medium">Export</span>
+            </Button>
+
+            {/* Tags Manager Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onTabChange('tags')}
+              className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm h-8 sm:h-9 rounded-xl shadow-xs"
+            >
+              <TagIcon className="size-3.5 sm:size-4 text-slate-500 dark:text-slate-400" />
+              <span className="ml-1.5 hidden xs:inline font-medium">Tags</span>
+            </Button>
+
+            {/* Import Contacts */}
+            <GatedButton
+              variant="outline"
+              size="sm"
+              canAct={canEdit}
+              gateReason="add or import contacts"
+              onClick={() => setImportOpen(true)}
+              className="border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm h-8 sm:h-9 rounded-xl shadow-xs"
+            >
+              <Upload className="size-3.5 sm:size-4 text-slate-500 dark:text-slate-400" />
+              <span className="ml-1.5 hidden xs:inline font-medium">Import</span>
+            </GatedButton>
+
+            {/* Add Contact */}
+            <GatedButton
+              size="sm"
+              canAct={canEdit}
+              gateReason="add or import contacts"
+              onClick={openAddForm}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs sm:text-sm h-8 sm:h-9 rounded-xl shadow-xs dark:bg-primary dark:hover:bg-primary/90 dark:text-primary-foreground"
+            >
+              <Plus className="size-3.5 sm:size-4" />
+              <span className="ml-1">Add Contact</span>
+            </GatedButton>
+          </div>
 
       {/* Filter & Search Bar */}
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
@@ -1094,6 +1146,30 @@ export default function ContactsPage() {
           )}
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="tags" className="mt-4 sm:mt-6">
+          {activeTab === 'tags' && (
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-xs">
+              <div className="mb-6">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <TagIcon className="size-5 text-emerald-600 dark:text-primary" />
+                  Tag Manager
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  Create, edit, and organize tags to label your contacts and segment broadcast audiences.
+                </p>
+              </div>
+              <TagManager
+                onTagsChanged={() => {
+                  fetchTags();
+                  fetchContacts();
+                }}
+              />
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Contact Form Dialog */}
       <ContactForm
