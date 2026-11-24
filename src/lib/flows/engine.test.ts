@@ -39,10 +39,10 @@ describe("matchReplyId", () => {
     expect(matchReplyId(node, "No")).toBe("declined");
     // Button title match
     expect(matchReplyId(node, "Yes")).toBe("confirmed");
-    // Numeric index match
-    expect(matchReplyId(node, "1")).toBe("confirmed");
-    expect(matchReplyId(node, "2")).toBe("declined");
-    expect(matchReplyId(node, "btn_1")).toBe("confirmed");
+    // Numeric index is no longer matched — strictly requires reply_id or title
+    expect(matchReplyId(node, "1")).toBeNull();
+    expect(matchReplyId(node, "2")).toBeNull();
+    expect(matchReplyId(node, "btn_1")).toBeNull();
   });
 
   it("returns null when no button reply_id matches", () => {

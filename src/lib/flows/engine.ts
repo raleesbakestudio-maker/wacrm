@@ -91,32 +91,19 @@ export function matchReplyId(
     );
     if (hit) return hit.next_node_key || null;
 
-    // 3. Match against button visible title (e.g. user typed "Yes" or Meta returned title)
+    // 3. Match against button configured title (case-insensitive)
     hit = cfg.buttons.find(
       (b) => b.title && b.title.trim().toLowerCase() === lower,
     );
     if (hit) return hit.next_node_key || null;
-
-    // 4. Numeric index match ("1" for 1st button, "2" for 2nd button, "btn_1" for 1st)
-    if (/^[1-3]$/.test(clean)) {
-      const idx = parseInt(clean, 10) - 1;
-      if (cfg.buttons[idx]) return cfg.buttons[idx].next_node_key || null;
-    }
-    const btnNum = clean.match(/^btn_([1-3])$/i);
-    if (btnNum) {
-      const idx = parseInt(btnNum[1], 10) - 1;
-      if (cfg.buttons[idx]) return cfg.buttons[idx].next_node_key || null;
-    }
 
     return null;
   }
 
   if (node.node_type === "send_list") {
     const cfg = node.config as unknown as SendListNodeConfig;
-    let rowIndex = 0;
     for (const section of cfg.sections ?? []) {
       for (const row of section.rows ?? []) {
-        rowIndex += 1;
         if (row.reply_id === clean) return row.next_node_key || null;
         if (row.reply_id && row.reply_id.trim().toLowerCase() === lower) {
           return row.next_node_key || null;
@@ -124,7 +111,6 @@ export function matchReplyId(
         if (row.title && row.title.trim().toLowerCase() === lower) {
           return row.next_node_key || null;
         }
-        if (clean === String(rowIndex)) return row.next_node_key || null;
       }
     }
     return null;
@@ -1138,9 +1124,11 @@ async function handleReplyForActiveRun(
   }
 
   // Two ways a reply can advance:
-  //   1. Interactive button/list tap on a send_buttons/send_list node (or typed button text).
+  //   1. Interactive button/list tap on a send_buttons/send_list node (strictly button tap).
   //   2. Text reply on a collect_input node — capture into vars.
   //
+  // Typed text on a send_buttons or send_list node does NOT advance the flow.
+  // The customer must physically tap the interactive button / list item.
   // Everything else falls through to the fallback policy below.
   let matched: string | null = null;
   if (
@@ -1152,9 +1140,6 @@ async function handleReplyForActiveRun(
       if (!matched && message.reply_title) {
         matched = matchReplyId(currentNode, message.reply_title);
       }
-    } else if (message.kind === "text") {
-      // Customer typed the button text or option number (e.g. "Yes", "No", "1", "2")
-      matched = matchReplyId(currentNode, message.text);
     }
   } else if (
     message.kind === "text" &&
