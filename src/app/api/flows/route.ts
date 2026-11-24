@@ -27,6 +27,8 @@ async function requireUser(): Promise<
   return { ok: true, userId: user.id, supabase }
 }
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   const guard = await requireUser()
   if (!guard.ok) {
@@ -41,7 +43,10 @@ export async function GET() {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  return NextResponse.json({ flows: data ?? [] })
+  return NextResponse.json(
+    { flows: data ?? [] },
+    { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } },
+  )
 }
 
 export async function POST(request: Request) {

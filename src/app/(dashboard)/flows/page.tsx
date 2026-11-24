@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -91,40 +91,49 @@ export default function FlowsPage() {
   const [creating, setCreating] = useState(false);
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [flowsRes, tmplRes] = await Promise.all([
-          fetch("/api/flows"),
-          fetch("/api/flows/templates"),
-        ]);
-        if (!flowsRes.ok) {
-          throw new Error(`Failed to load flows: ${flowsRes.status}`);
-        }
-        const flowsJson = (await flowsRes.json()) as { flows: FlowRow[] };
-        if (!cancelled) setFlows(flowsJson.flows ?? []);
-        // Templates endpoint is forward-looking — if it 404s on an
-        // older deployment, gracefully fall through.
-        if (tmplRes.ok) {
-          const tmplJson = (await tmplRes.json()) as {
-            templates: TemplateSummary[];
-          };
-          if (!cancelled) setTemplates(tmplJson.templates ?? []);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          console.error(err);
-          toast.error("Couldn't load flows.");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+  const loadFlows = useCallback(async () => {
+    try {
+      const [flowsRes, tmplRes] = await Promise.all([
+        fetch("/api/flows", { cache: "no-store" }),
+        fetch("/api/flows/templates", { cache: "no-store" }),
+      ]);
+      if (!flowsRes.ok) {
+        throw new Error(`Failed to load flows: ${flowsRes.status}`);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+      const flowsJson = (await flowsRes.json()) as { flows: FlowRow[] };
+      setFlows(flowsJson.flows ?? []);
+      // Templates endpoint is forward-looking — if it 404s on an
+      // older deployment, gracefully fall through.
+      if (tmplRes.ok) {
+        const tmplJson = (await tmplRes.json()) as {
+          templates: TemplateSummary[];
+        };
+        setTemplates(tmplJson.templates ?? []);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Couldn't load flows.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadFlows();
+
+    // Auto-refresh when user switches back to this tab or navigates back from flow editor
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadFlows();
+      }
+    };
+    window.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", onVisibilityChange);
+    return () => {
+      window.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", onVisibilityChange);
+    };
+  }, [loadFlows]);
 
   async function handleCreate() {
     if (!newName.trim()) return;
@@ -141,6 +150,9 @@ export default function FlowsPage() {
       });
       if (!res.ok) throw new Error(`Create failed: ${res.status}`);
       const json = (await res.json()) as { flow: FlowRow };
+      if (json.flow) {
+        setFlows((prev) => [json.flow, ...prev]);
+      }
       setCreateOpen(false);
       setNewName("");
       router.push(`/flows/${json.flow.id}`);
@@ -165,6 +177,9 @@ export default function FlowsPage() {
         throw new Error(json.error ?? `Clone failed: ${res.status}`);
       }
       const json = (await res.json()) as { flow: FlowRow };
+      if (json.flow) {
+        setFlows((prev) => [json.flow, ...prev]);
+      }
       setCreateOpen(false);
       router.push(`/flows/${json.flow.id}`);
     } catch (err) {

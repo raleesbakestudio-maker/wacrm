@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentAccount, requireRole, toErrorResponse } from "@/lib/auth/account";
 import type { QuickReply } from "@/types";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const ctx = await getCurrentAccount();
@@ -16,7 +18,10 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ quick_replies: (data ?? []) as QuickReply[] });
+    return NextResponse.json(
+      { quick_replies: (data ?? []) as QuickReply[] },
+      { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+    );
   } catch (err) {
     return toErrorResponse(err);
   }

@@ -61,7 +61,7 @@ export function QuickRepliesTab() {
   const fetchReplies = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/quick-replies');
+      const res = await fetch('/api/quick-replies', { cache: 'no-store' });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Failed to fetch quick replies');
@@ -82,6 +82,18 @@ export function QuickRepliesTab() {
       return;
     }
     fetchReplies();
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user) {
+        fetchReplies();
+      }
+    };
+    window.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', onVisibilityChange);
+    return () => {
+      window.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', onVisibilityChange);
+    };
   }, [authLoading, user?.id]);
 
   const handleOpenAdd = () => {
@@ -199,6 +211,16 @@ export function QuickRepliesTab() {
       const resData = await res.json();
       if (!res.ok) {
         throw new Error(resData.error || 'Failed to save quick reply');
+      }
+
+      if (resData.quick_reply) {
+        if (editingReply) {
+          setReplies((prev) =>
+            prev.map((r) => (r.id === resData.quick_reply.id ? resData.quick_reply : r))
+          );
+        } else {
+          setReplies((prev) => [resData.quick_reply, ...prev]);
+        }
       }
 
       toast.success(editingReply ? 'Quick reply updated' : 'Quick reply created');
