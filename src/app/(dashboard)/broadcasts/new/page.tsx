@@ -39,6 +39,7 @@ export default function NewBroadcastPage() {
   const [variables, setVariables] = useState<
     Record<string, { type: 'static' | 'field' | 'custom_field'; value: string }>
   >({});
+  const [buttonFlows, setButtonFlows] = useState<Record<string, string>>({});
   const [name, setName] = useState('');
 
   async function handleSend(scheduledAt?: string | null) {
@@ -56,6 +57,7 @@ export default function NewBroadcastPage() {
           excludeTagIds: audience.excludeTagIds,
         },
         variables,
+        button_flows: buttonFlows,
         scheduled_at: scheduledAt || null,
       });
 
@@ -110,6 +112,7 @@ export default function NewBroadcastPage() {
       template_name: template.name,
       template_language: template.language ?? 'en_US',
       template_variables: variables,
+      button_flows: buttonFlows,
       audience_filter: {
         type: audience.type,
         tagIds: audience.tagIds,
@@ -222,6 +225,8 @@ export default function NewBroadcastPage() {
               template={template}
               audience={audience}
               variables={variables}
+              buttonFlows={buttonFlows}
+              onButtonFlowsChange={setButtonFlows}
               onSend={handleSend}
               onSaveDraft={handleSaveDraft}
               onBack={() => setCurrentStep(2)}

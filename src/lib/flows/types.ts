@@ -383,6 +383,8 @@ export interface DispatchInboundInput {
   contactId: string;
   conversationId: string;
   message: ParsedInbound;
+  /** Explicit flow to launch (e.g. from broadcast template button mapping). */
+  targetFlowId?: string;
 }
 
 export interface DispatchInboundResult {

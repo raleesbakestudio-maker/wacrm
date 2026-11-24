@@ -40,6 +40,7 @@ export interface BroadcastPayload {
   template: MessageTemplate;
   audience: AudienceConfig;
   variables: Record<string, VariableMapping>;
+  button_flows?: Record<string, string>;
   scheduled_at?: string | null;
 }
 
@@ -397,6 +398,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
           template_name: payload.template.name,
           template_language: payload.template.language ?? 'en_US',
           template_variables: payload.variables,
+          button_flows: payload.button_flows || {},
           audience_filter: {
             type: payload.audience.type,
             tagIds: payload.audience.tagIds,

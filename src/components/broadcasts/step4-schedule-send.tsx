@@ -24,8 +24,17 @@ import {
   Clock,
   Smartphone,
   CheckCircle,
+  Bot,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { validateAndFormatWhatsAppPhone } from '@/lib/whatsapp/phone-utils';
 import type { VariableMapping } from '@/hooks/use-broadcast-sending';
 import { cn } from '@/lib/utils';
@@ -42,6 +51,8 @@ interface Step4Props {
   template: MessageTemplate;
   audience: AudienceConfig;
   variables?: Record<string, VariableMapping>;
+  buttonFlows?: Record<string, string>;
+  onButtonFlowsChange?: (bf: Record<string, string>) => void;
   onSend: (scheduledAt?: string | null) => void;
   onSaveDraft?: () => void;
   onBack: () => void;
@@ -55,6 +66,8 @@ export function Step4ScheduleSend({
   template,
   audience,
   variables = {},
+  buttonFlows = {},
+  onButtonFlowsChange,
   onSend,
   onSaveDraft,
   onBack,
@@ -76,6 +89,30 @@ export function Step4ScheduleSend({
     .toISOString()
     .slice(0, 16);
   const [scheduledTime, setScheduledTime] = useState(defaultScheduleTime);
+
+  // Active flows for button mapping
+  const [activeFlows, setActiveFlows] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    async function fetchFlows() {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from('flows')
+          .select('id, name')
+          .eq('status', 'active')
+          .order('name', { ascending: true });
+        setActiveFlows(data ?? []);
+      } catch (err) {
+        console.error('[broadcasts] failed to load active flows:', err);
+      }
+    }
+    fetchFlows();
+  }, []);
+
+  const quickReplyButtons = (template.buttons ?? []).filter(
+    (b) => b.type === 'QUICK_REPLY'
+  );
 
   useEffect(() => {
     async function calculateReach() {
@@ -236,6 +273,64 @@ export function Step4ScheduleSend({
           </div>
         </div>
       </div>
+
+      {/* Button Actions / Connect to Flow */}
+      {quickReplyButtons.length > 0 && (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Bot className="h-4 w-4 text-primary" />
+            <p className="text-sm font-medium text-white">
+              Button Actions / Connect to Flow (ബട്ടൺ പ്രസ്സ് ചെയ്യുമ്പോൾ ഫ്ലോ ആരംഭിക്കുക)
+            </p>
+          </div>
+          <p className="text-xs text-slate-400">
+            ഈ ടെംപ്ലേറ്റിലെ ബട്ടണുകളിൽ കസ്റ്റമർ ക്ലിക്ക് ചെയ്യുമ്പോൾ ഏത് Chatbot Flow ആണ് പ്രവർത്തിക്കേണ്ടത് എന്ന് താഴെ തിരഞ്ഞെടുക്കാം (ഓപ്ഷണൽ):
+          </p>
+          <div className="space-y-2.5 pt-1">
+            {quickReplyButtons.map((btn, idx) => (
+              <div
+                key={idx}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-lg border border-slate-800 bg-slate-900/80"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">ബട്ടൺ:</span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary/10 border border-primary/30 text-xs font-semibold text-primary">
+                    <Sparkles className="h-3 w-3" />
+                    {btn.text}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 sm:w-72">
+                  <span className="text-xs text-slate-400 shrink-0">ഫ്ലോ:</span>
+                  <Select
+                    value={buttonFlows[btn.text] || 'none'}
+                    onValueChange={(val) => {
+                      const next = { ...buttonFlows };
+                      if (!val || val === 'none') {
+                        delete next[btn.text];
+                      } else {
+                        next[btn.text] = val;
+                      }
+                      onButtonFlowsChange?.(next);
+                    }}
+                  >
+                    <SelectTrigger className="w-full bg-slate-800 border-slate-700 text-xs text-white">
+                      <SelectValue placeholder="-- ഫ്ലോ തിരഞ്ഞെടുക്കുക (None) --" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                      <SelectItem value="none">-- ഫ്ലോ ഇല്ല (None) --</SelectItem>
+                      {activeFlows.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Send a Test Message Card */}
       <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-4 space-y-3">

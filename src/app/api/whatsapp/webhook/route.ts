@@ -667,11 +667,50 @@ async function processMessage(
   // no active flows take the runner's early-exit "no_match" path
   // basically for free (one indexed SELECT for the active run).
   // ============================================================
+  // Check if this inbound message is a tap on a Broadcast Template Quick-Reply button!
+  let broadcastTargetFlowId: string | undefined = undefined
+  if (message.context?.id && (message.type === 'button' || message.type === 'interactive')) {
+    try {
+      const admin = supabaseAdmin()
+      const { data: bRecip } = await admin
+        .from('broadcast_recipients')
+        .select('broadcast_id')
+        .eq('whatsapp_message_id', message.context.id)
+        .maybeSingle()
+
+      if (bRecip?.broadcast_id) {
+        const { data: bCast } = await admin
+          .from('broadcasts')
+          .select('button_flows')
+          .eq('id', bRecip.broadcast_id)
+          .maybeSingle()
+
+        if (bCast?.button_flows && typeof bCast.button_flows === 'object') {
+          const bFlows = bCast.button_flows as Record<string, string>
+          const btnText = message.button?.text || message.button?.payload || contentText || interactiveReplyId
+          if (btnText) {
+            const raw = btnText.trim()
+            const lower = raw.toLowerCase()
+            for (const [k, v] of Object.entries(bFlows)) {
+              if (v && (k === raw || k.trim().toLowerCase() === lower)) {
+                broadcastTargetFlowId = v
+                break
+              }
+            }
+          }
+        }
+      }
+    } catch (bErr) {
+      console.error('[webhook] broadcast button flow resolution failed:', bErr)
+    }
+  }
+
   const flowResult = await dispatchInboundToFlows({
     accountId,
     userId: configOwnerUserId,
     contactId: contactRecord.id,
     conversationId: conversation.id,
+    targetFlowId: broadcastTargetFlowId,
     message:
       interactiveReplyId
         ? {

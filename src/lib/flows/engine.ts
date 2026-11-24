@@ -349,9 +349,15 @@ async function findEntryFlow(
   message: ParsedInbound,
   isFirstInbound: boolean,
 ): Promise<FlowRow | null> {
-  // Only text messages can match an entry trigger. Interactive replies
-  // are responses to existing prompts; they never start a new flow.
-  if (message.kind !== "text") return null;
+  // A flow can match an entry trigger if:
+  // - text message: matches keyword
+  // - interactive_reply: matches keyword via button reply_title or reply_id (e.g. quick-reply buttons on templates)
+  const textToMatch =
+    message.kind === "text"
+      ? message.text
+      : (message.reply_title || message.reply_id);
+
+  if (!textToMatch || !textToMatch.trim()) return null;
 
   // Pull all active flows for this account. Active set is bounded
   // (the builder discourages double-trigger overlap; partial index
@@ -366,17 +372,19 @@ async function findEntryFlow(
 
   const typed = flows as FlowRow[];
   for (const flow of typed) {
+    // Under NO circumstance should a manual-trigger flow auto-start from inbound matching!
+    if (flow.trigger_type === "manual") continue;
+
     if (flow.trigger_type === "keyword") {
       if (matchesKeywordTrigger(
-        message.text,
+        textToMatch,
         flow.trigger_config as KeywordTriggerConfig,
       )) {
         return flow;
       }
-    } else if (flow.trigger_type === "first_inbound_message" && isFirstInbound) {
+    } else if (flow.trigger_type === "first_inbound_message" && isFirstInbound && message.kind === "text") {
       return flow;
     }
-    // 'manual' triggers do not auto-start from inbound messages.
   }
   return null;
 }
@@ -1033,6 +1041,19 @@ export async function dispatchInboundToFlows(
       input.contactId,
     );
 
+    // If an explicit target flow was passed (e.g. from a broadcast button-flow mapping),
+    // launch that specific flow immediately.
+    if (input.targetFlowId) {
+      const targetFlow = await loadFlow(db, input.targetFlowId);
+      if (targetFlow && targetFlow.status === "active" && targetFlow.entry_node_id) {
+        if (activeRun) {
+          await endRun(db, activeRun.id, "handed_off", "superseded_by_broadcast_button");
+        }
+        const nodes = await loadAllNodes(db, targetFlow.id);
+        return startNewRun(db, targetFlow, input, nodes);
+      }
+    }
+
     // Idempotency — only matters if there's already a run for this
     // contact. For new runs, the partial unique index catches duplicate
     // starts at INSERT time.
@@ -1378,6 +1399,11 @@ async function handleInteractiveReplyWithoutActiveRun(
     .limit(3);
 
   for (const run of (recentRuns as FlowRunRow[] | null) ?? []) {
+    // Under NO circumstance should a manual-trigger flow be restarted or resumed by button reply scans!
+    const flow = await loadFlow(db, run.flow_id);
+    if (!flow || flow.status !== "active" || flow.trigger_type === "manual") {
+      continue;
+    }
     const nodes = await loadAllNodes(db, run.flow_id);
     for (const [, node] of nodes) {
       if (node.node_type === "send_buttons" || node.node_type === "send_list") {
@@ -1386,37 +1412,15 @@ async function handleInteractiveReplyWithoutActiveRun(
           matched = matchReplyId(node, replyTitle);
         }
         if (matched) {
-          const flow = await loadFlow(db, run.flow_id);
-          if (flow && flow.status === "active") {
-            return startRunFromNode(db, flow, input, nodes, matched, run.vars ?? {});
-          }
+          return startRunFromNode(db, flow, input, nodes, matched, run.vars ?? {});
         }
       }
     }
   }
 
-  // 2. Fallback: Search across all active flows for this account
-  const { data: activeFlows } = await db
-    .from("flows")
-    .select("*")
-    .eq("account_id", input.accountId)
-    .eq("status", "active")
-    .order("created_at", { ascending: false });
-
-  for (const flow of (activeFlows as FlowRow[] | null) ?? []) {
-    const nodes = await loadAllNodes(db, flow.id);
-    for (const [, node] of nodes) {
-      if (node.node_type === "send_buttons" || node.node_type === "send_list") {
-        let matched = matchReplyId(node, replyId);
-        if (!matched && replyTitle) {
-          matched = matchReplyId(node, replyTitle);
-        }
-        if (matched) {
-          return startRunFromNode(db, flow, input, nodes, matched, {});
-        }
-      }
-    }
-  }
+  // NOTE: We intentionally do NOT scan across all active flows for matching button text.
+  // Scanning arbitrary flows causes unrelated flows (especially manual ones) with common
+  // button labels like "Yes" or "No" to unexpectedly trigger.
 
   return { consumed: false, outcome: "no_match" };
 }
