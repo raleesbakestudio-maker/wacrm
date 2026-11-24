@@ -20,14 +20,27 @@ function sleep(ms: number) {
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
-  return handleCron();
+  return handleCron(request);
 }
 
 export async function POST(request: Request) {
-  return handleCron();
+  return handleCron(request);
 }
 
-async function handleCron() {
+async function handleCron(request?: Request) {
+  // If CRON_SECRET is configured, enforce authorization header
+  const expectedSecret = process.env.CRON_SECRET || process.env.BROADCAST_CRON_SECRET;
+  if (expectedSecret && request) {
+    const authHeader = request.headers.get('authorization');
+    const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const customHeader = request.headers.get('x-cron-secret');
+    const supplied = bearer || customHeader;
+
+    if (supplied !== expectedSecret) {
+      return NextResponse.json({ error: 'Unauthorized: Invalid cron secret' }, { status: 401 });
+    }
+  }
+
   const admin = supabaseAdmin();
   const now = new Date().toISOString();
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
