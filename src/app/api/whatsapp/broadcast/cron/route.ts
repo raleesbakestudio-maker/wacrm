@@ -115,7 +115,7 @@ async function handleCron() {
         .map((r) => r.contact?.id)
         .filter((id): id is string => Boolean(id));
 
-      // Pre-resolve conversations for Inbox Chat Sync
+      // Pre-resolve existing conversations for Inbox Chat Sync (new ones created only upon successful send)
       const convMap = new Map<string, string>();
       if (broadcast.account_id && contactIds.length > 0) {
         const { data: existingConvs } = await admin
@@ -126,24 +126,6 @@ async function handleCron() {
 
         for (const c of existingConvs ?? []) {
           convMap.set(c.contact_id, c.id);
-        }
-
-        const missingCids = contactIds.filter((cid) => !convMap.has(cid));
-        if (missingCids.length > 0) {
-          const newConvs = missingCids.map((cid) => ({
-            account_id: broadcast.account_id,
-            user_id: broadcast.user_id,
-            contact_id: cid,
-            status: 'open',
-          }));
-          const { data: createdConvs } = await admin
-            .from('conversations')
-            .upsert(newConvs, { onConflict: 'account_id,contact_id' })
-            .select('id, contact_id');
-
-          for (const c of createdConvs ?? []) {
-            convMap.set(c.contact_id, c.id);
-          }
         }
       }
 
@@ -245,10 +227,34 @@ async function handleCron() {
                 })
                 .eq('id', recipient.id);
 
-              // Inbox Chat Sync
-              const convId = recipient.contact ? convMap.get(recipient.contact.id) : null;
+              // Inbox Chat Sync (only for successfully delivered/sent messages)
+              let convId = recipient.contact ? convMap.get(recipient.contact.id) : null;
+              const rendered = renderTemplateBody(templateBody, params);
+
+              if (!convId && recipient.contact && broadcast.account_id) {
+                const { data: createdConv } = await admin
+                  .from('conversations')
+                  .upsert(
+                    {
+                      account_id: broadcast.account_id,
+                      user_id: broadcast.user_id,
+                      contact_id: recipient.contact.id,
+                      status: 'open',
+                      last_message_text: rendered,
+                      last_message_at: new Date().toISOString(),
+                    },
+                    { onConflict: 'account_id,contact_id' }
+                  )
+                  .select('id')
+                  .maybeSingle();
+
+                if (createdConv?.id) {
+                  convId = createdConv.id;
+                  convMap.set(recipient.contact.id, createdConv.id);
+                }
+              }
+
               if (convId) {
-                const rendered = renderTemplateBody(templateBody, params);
                 messageInserts.push({
                   conversation_id: convId,
                   sender_type: 'agent',

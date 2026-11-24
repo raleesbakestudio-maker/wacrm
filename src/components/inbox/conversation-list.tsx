@@ -83,6 +83,7 @@ export function ConversationList({
         supabase
           .from("conversations")
           .select("*, contact:contacts(*)")
+          .not("last_message_text", "is", null)
           .order("last_message_at", { ascending: false }),
         supabase.from("tags").select("*").order("name"),
       ]);
@@ -203,7 +204,13 @@ export function ConversationList({
       }
     }
 
-    let result = uniqueConvs;
+    // Filter out conversations with no messages unless actively searched or selected
+    let result = uniqueConvs.filter(
+      (c) =>
+        Boolean(c.last_message_text && c.last_message_text.trim()) ||
+        c.id === activeConversationId ||
+        Boolean(search.trim())
+    );
 
     if (filter !== "all") {
       result = result.filter((c) => c.status === filter);
