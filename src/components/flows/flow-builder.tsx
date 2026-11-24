@@ -52,7 +52,7 @@ import {
   type NodeType,
 } from "./shared";
 import { NodeConfigForm } from "./forms/node-config-form";
-import { NodeKeySelect } from "./forms/fields";
+import { NodeKeySelect, KeywordInput } from "./forms/fields";
 import { IssueLine } from "./validation-panel";
 import {
   useFlowEditor,
@@ -253,26 +253,22 @@ function TriggerPanel({
             <label className="mb-1 block text-xs text-slate-400">
               Keywords (comma-separated)
             </label>
-            <Input
-              value={
+            <KeywordInput
+              keywords={
                 Array.isArray(state.trigger_config.keywords)
-                  ? (state.trigger_config.keywords as string[]).join(", ")
-                  : ""
+                  ? (state.trigger_config.keywords as string[])
+                  : []
               }
-              onChange={(e) =>
+              onChange={(kw) =>
                 setState((s) => ({
                   ...s,
                   trigger_config: {
                     ...s.trigger_config,
-                    keywords: e.target.value
-                      .split(",")
-                      .map((k) => k.trim())
-                      .filter(Boolean),
+                    keywords: kw,
                   },
                 }))
               }
-              placeholder="support, help, hi"
-              className="bg-slate-800"
+              placeholder="support, help, hi, bake"
             />
           </div>
         )}

@@ -4,6 +4,7 @@ import {
   deriveCanvasEdges,
   outgoingSlots,
   unlinkNodeReferences,
+  renameNodeReferences,
 } from "./edges";
 import type { BuilderNode } from "@/components/flows/shared";
 
@@ -589,3 +590,63 @@ describe("unlinkNodeReferences", () => {
     expect(after[1]).toBe(nodes[1]);
   });
 });
+
+describe("renameNodeReferences", () => {
+  it("renames next_node_key in single-outgoing nodes", () => {
+    const before: BuilderNode[] = [
+      {
+        node_key: "a",
+        node_type: "send_message",
+        config: { text: "hi", next_node_key: "old_key" },
+      },
+    ];
+    const after = renameNodeReferences(before, "old_key", "new_key");
+    expect((after[0].config as { next_node_key: string }).next_node_key).toBe("new_key");
+  });
+
+  it("renames condition true/false branch targets", () => {
+    const before: BuilderNode[] = [
+      {
+        node_key: "c",
+        node_type: "condition",
+        config: { true_next: "old_key", false_next: "other" },
+      },
+    ];
+    const after = renameNodeReferences(before, "old_key", "new_key");
+    expect((after[0].config as { true_next: string }).true_next).toBe("new_key");
+    expect((after[0].config as { false_next: string }).false_next).toBe("other");
+  });
+
+  it("renames button and list row next_node_key targets", () => {
+    const before: BuilderNode[] = [
+      {
+        node_key: "b",
+        node_type: "send_buttons",
+        config: {
+          text: "pick",
+          buttons: [
+            { reply_id: "yes", title: "Yes", next_node_key: "old_key" },
+            { reply_id: "no", title: "No", next_node_key: "safe" },
+          ],
+        },
+      },
+    ];
+    const after = renameNodeReferences(before, "old_key", "new_key");
+    const btns = (after[0].config as { buttons: Array<{ next_node_key: string }> }).buttons;
+    expect(btns[0].next_node_key).toBe("new_key");
+    expect(btns[1].next_node_key).toBe("safe");
+  });
+
+  it("returns input nodes untouched when no references match", () => {
+    const before: BuilderNode[] = [
+      {
+        node_key: "a",
+        node_type: "send_message",
+        config: { text: "hi", next_node_key: "b" },
+      },
+    ];
+    const after = renameNodeReferences(before, "ghost", "new_ghost");
+    expect(after[0]).toBe(before[0]);
+  });
+});
+

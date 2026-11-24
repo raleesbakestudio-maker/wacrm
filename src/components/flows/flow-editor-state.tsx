@@ -49,7 +49,7 @@ import {
   validateFlowForActivation,
   type ValidationIssue,
 } from "@/lib/flows/validate";
-import { unlinkNodeReferences } from "@/lib/flows/edges";
+import { unlinkNodeReferences, renameNodeReferences } from "@/lib/flows/edges";
 import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
 import { NODE_META, slugify, type BuilderNode, type NodeType } from "./shared";
 
@@ -100,7 +100,7 @@ export interface FlowEditorContextValue {
   removeNode: (key: string) => void;
 
   // Actions
-  save: () => Promise<void>;
+  save: () => Promise<boolean>;
   setStatus: (status: BuilderState["status"]) => Promise<void>;
   deleteFlow: () => Promise<void>;
 
@@ -310,7 +310,7 @@ export function FlowEditorProvider({
   );
 
   // ---- Save (PUT) ----
-  const save = useCallback(async () => {
+  const save = useCallback(async (): Promise<boolean> => {
     setSaving(true);
     try {
       const res = await fetch(`/api/flows/${initialFlow.id}`, {
@@ -331,9 +331,11 @@ export function FlowEditorProvider({
       }
       setDirty(false);
       toast.success("Saved.");
+      return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Save failed";
       toast.error(msg);
+      return false;
     } finally {
       setSaving(false);
     }
@@ -352,7 +354,11 @@ export function FlowEditorProvider({
         // latest state — the user shouldn't have to remember "save
         // then activate".
         if (next === "active") {
-          await save();
+          const saveOk = await save();
+          if (!saveOk) {
+            setActivating(false);
+            return;
+          }
         }
         const res = await fetch(`/api/flows/${initialFlow.id}/activate`, {
           method: "POST",
@@ -402,12 +408,29 @@ export function FlowEditorProvider({
   // ---- Node mutations ----
   const updateNode = useCallback(
     (key: string, patch: Partial<BuilderNode>) => {
-      setState((s) => ({
-        ...s,
-        nodes: s.nodes.map((n) =>
-          n.node_key === key ? { ...n, ...patch } : n,
-        ),
-      }));
+      setState((s) => {
+        let updatedNodes = s.nodes;
+        let entryId = s.entry_node_id;
+
+        // If renaming node_key, cascade the rename to all references and entry_node_id
+        if (patch.node_key && patch.node_key !== key) {
+          const newKey = patch.node_key.trim();
+          if (newKey && !s.nodes.some((n) => n.node_key === newKey && n.node_key !== key)) {
+            updatedNodes = renameNodeReferences(s.nodes, key, newKey);
+            if (entryId === key) {
+              entryId = newKey;
+            }
+          }
+        }
+
+        return {
+          ...s,
+          entry_node_id: entryId,
+          nodes: updatedNodes.map((n) =>
+            n.node_key === key ? { ...n, ...patch } : n,
+          ),
+        };
+      });
     },
     [setState],
   );
@@ -456,11 +479,8 @@ export function FlowEditorProvider({
         return {
           ...s,
           nodes: [...s.nodes, next],
-          // If this is the first node and it's a start, pick it as
-          // the entry automatically. Saves a click.
-          entry_node_id:
-            s.entry_node_id ??
-            (type === "start" ? node_key : s.entry_node_id ?? null),
+          // If entry is not set yet, pick this first node as the entry automatically
+          entry_node_id: s.entry_node_id ?? node_key,
         };
       });
       return createdKey;

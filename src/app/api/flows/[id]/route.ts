@@ -133,8 +133,66 @@ export async function PUT(
   }
 
   if (body.nodes !== undefined) {
-    // Delete-then-insert. Not transactional but the runner handles
-    // mid-edit reads safely (a node_not_found ends the run cleanly).
+    if (!Array.isArray(body.nodes)) {
+      return NextResponse.json(
+        { error: 'nodes must be an array' },
+        { status: 400 },
+      )
+    }
+
+    const seenKeys = new Set<string>()
+    const sanitizedNodes = []
+
+    for (const n of body.nodes) {
+      if (!n || typeof n !== 'object') {
+        return NextResponse.json(
+          { error: 'Invalid node entry' },
+          { status: 400 },
+        )
+      }
+      const rawKey = typeof n.node_key === 'string' ? n.node_key.trim() : ''
+      if (!rawKey) {
+        return NextResponse.json(
+          { error: 'Every node must have a valid node key' },
+          { status: 400 },
+        )
+      }
+      if (seenKeys.has(rawKey)) {
+        return NextResponse.json(
+          { error: `Duplicate node key "${rawKey}" detected` },
+          { status: 400 },
+        )
+      }
+      seenKeys.add(rawKey)
+
+      const rawType = typeof n.node_type === 'string' ? n.node_type.trim() : ''
+      if (!rawType) {
+        return NextResponse.json(
+          { error: `Node "${rawKey}" is missing node_type` },
+          { status: 400 },
+        )
+      }
+
+      const posX = Math.round(Number(n.position_x) || 0)
+      const posY = Math.round(Number(n.position_y) || 0)
+
+      sanitizedNodes.push({
+        flow_id: id,
+        node_key: rawKey,
+        node_type: rawType,
+        config: n.config && typeof n.config === 'object' ? n.config : {},
+        position_x: Number.isFinite(posX) ? posX : 0,
+        position_y: Number.isFinite(posY) ? posY : 0,
+      })
+    }
+
+    // Keep backup of existing nodes in case insert fails
+    const { data: existingNodes } = await admin
+      .from('flow_nodes')
+      .select('node_key, node_type, config, position_x, position_y')
+      .eq('flow_id', id)
+
+    // Delete existing nodes
     const { error: delErr } = await admin
       .from('flow_nodes')
       .delete()
@@ -142,19 +200,30 @@ export async function PUT(
     if (delErr) {
       return NextResponse.json({ error: delErr.message }, { status: 500 })
     }
-    if (body.nodes.length > 0) {
-      const { error: insErr } = await admin.from('flow_nodes').insert(
-        body.nodes.map((n) => ({
-          flow_id: id,
-          node_key: n.node_key,
-          node_type: n.node_type,
-          config: n.config,
-          position_x: n.position_x ?? 0,
-          position_y: n.position_y ?? 0,
-        })),
-      )
+
+    if (sanitizedNodes.length > 0) {
+      const { error: insErr } = await admin
+        .from('flow_nodes')
+        .insert(sanitizedNodes)
       if (insErr) {
-        return NextResponse.json({ error: insErr.message }, { status: 500 })
+        console.error('Failed to insert flow_nodes:', insErr)
+        // Automatic rollback: restore existing nodes so data is NOT lost!
+        if (existingNodes && existingNodes.length > 0) {
+          await admin.from('flow_nodes').insert(
+            existingNodes.map((en) => ({
+              flow_id: id,
+              node_key: en.node_key,
+              node_type: en.node_type,
+              config: en.config,
+              position_x: en.position_x ?? 0,
+              position_y: en.position_y ?? 0,
+            })),
+          )
+        }
+        return NextResponse.json(
+          { error: `Failed to save flow nodes: ${insErr.message}` },
+          { status: 500 },
+        )
       }
     }
   }

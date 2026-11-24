@@ -18,6 +18,7 @@
  * (introduced in this PR) mount the exact same form components.
  */
 
+import { useState, useEffect, useRef } from "react";
 import { Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -209,3 +210,48 @@ export function NodeKeySelect({
     </Select>
   );
 }
+
+export function KeywordInput({
+  keywords,
+  onChange,
+  placeholder = "support, help, hi",
+  className,
+}: {
+  keywords?: string[];
+  onChange: (keywords: string[]) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [text, setText] = useState(() =>
+    Array.isArray(keywords) ? keywords.join(", ") : "",
+  );
+  const isInternalChange = useRef(false);
+
+  useEffect(() => {
+    if (!isInternalChange.current) {
+      setText(Array.isArray(keywords) ? keywords.join(", ") : "");
+    }
+    isInternalChange.current = false;
+  }, [keywords]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setText(val);
+    isInternalChange.current = true;
+    const parsed = val
+      .split(",")
+      .map((k) => k.trim())
+      .filter(Boolean);
+    onChange(parsed);
+  };
+
+  return (
+    <Input
+      value={text}
+      onChange={handleChange}
+      placeholder={placeholder}
+      className={cn("bg-slate-800", className)}
+    />
+  );
+}
+

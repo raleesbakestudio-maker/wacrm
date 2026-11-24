@@ -54,11 +54,18 @@ import {
   type OnNodeDrag,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Trash2, Wand2, Scan, Maximize2, Minimize2 } from "lucide-react";
+import { Plus, Trash2, Wand2, Scan, Maximize2, Minimize2, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -85,8 +92,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useFlowEditor } from "./flow-editor-state";
+import { useFlowEditor, type BuilderState } from "./flow-editor-state";
 import { NodeConfigForm } from "./forms/node-config-form";
+import { NodeKeySelect, KeywordInput } from "./forms/fields";
 
 // React-Flow node `data` payload — the bits our custom renderer needs.
 interface NodeData extends Record<string, unknown> {
@@ -273,6 +281,7 @@ function FlowCanvasInner() {
   // flow-builder.tsx.
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [triggerOpen, setTriggerOpen] = useState(false);
 
   // Keyboard shortcut: Esc to exit fullscreen
   useEffect(() => {
@@ -492,7 +501,20 @@ function FlowCanvasInner() {
     return (
       <div className="flex flex-1 min-h-[60vh] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-700 bg-slate-950/80 text-sm text-slate-500">
         <p>No nodes yet.</p>
-        <CanvasAddNodeButton />
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setTriggerOpen(true)}
+            className="h-8 border-slate-700 bg-slate-900 text-xs text-slate-200 hover:bg-slate-800 flex items-center gap-1.5"
+          >
+            <Zap className="h-3.5 w-3.5 text-amber-400" />
+            Trigger & Entry
+          </Button>
+          <CanvasAddNodeButton />
+        </div>
+        <TriggerEditSheet open={triggerOpen} onClose={() => setTriggerOpen(false)} />
       </div>
     );
   }
@@ -543,6 +565,31 @@ function FlowCanvasInner() {
             maskColor="rgba(15, 23, 42, 0.7)"
             className="!border !border-slate-700 !bg-slate-900"
           />
+
+          {/* Quick Trigger Config (Top Left) */}
+          <Panel position="top-left" className="!top-3 !left-3 flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setTriggerOpen(true)}
+              className="h-8 border-slate-700 bg-slate-900/95 text-xs text-slate-200 hover:bg-slate-800 hover:text-white shadow-lg backdrop-blur flex items-center gap-1.5"
+              title="Click to configure trigger keywords and entry node"
+            >
+              <Zap className="h-3.5 w-3.5 text-amber-400" />
+              <span className="text-slate-400">Trigger:</span>
+              <span className="font-medium text-amber-300 max-w-[160px] truncate">
+                {state.trigger_type === "keyword"
+                  ? (Array.isArray(state.trigger_config?.keywords) &&
+                    (state.trigger_config.keywords as string[]).length > 0
+                      ? (state.trigger_config.keywords as string[]).join(", ")
+                      : "Keywords (None)")
+                  : state.trigger_type === "first_inbound_message"
+                    ? "First Message"
+                    : "Manual"}
+              </span>
+            </Button>
+          </Panel>
 
           {/* Quick Toolbar (Top Right) */}
           <Panel position="top-right" className="!top-3 !right-3 flex items-center gap-2">
@@ -604,6 +651,11 @@ function FlowCanvasInner() {
         onUpdateConfig={onSelectedUpdateConfig}
         onDelete={handleDeleteSelected}
         onSetEntry={handleSetEntry}
+      />
+
+      <TriggerEditSheet
+        open={triggerOpen}
+        onClose={() => setTriggerOpen(false)}
       />
     </>
   );
@@ -766,3 +818,115 @@ function CanvasAddNodeButton() {
     </DropdownMenu>
   );
 }
+
+function TriggerEditSheet({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { state, setState } = useFlowEditor();
+  const keywords = Array.isArray(state.trigger_config?.keywords)
+    ? (state.trigger_config.keywords as string[])
+    : [];
+
+  return (
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-md border-slate-800 bg-slate-900 text-slate-100 flex flex-col gap-4 overflow-y-auto"
+      >
+        <SheetHeader>
+          <SheetTitle className="text-base font-semibold text-white flex items-center gap-2">
+            <Zap className="h-4 w-4 text-amber-400" />
+            Flow Trigger & Entry
+          </SheetTitle>
+          <SheetDescription className="text-xs text-slate-400">
+            Define how contacts start this flow and which node executes first.
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex flex-col gap-4 mt-2">
+          <div>
+            <label className="mb-1 block text-xs text-slate-400 font-medium">
+              Trigger Type
+            </label>
+            <Select
+              value={state.trigger_type}
+              onValueChange={(v) =>
+                setState((s) => ({
+                  ...s,
+                  trigger_type: v as BuilderState["trigger_type"],
+                }))
+              }
+            >
+              <SelectTrigger className="bg-slate-800 border-slate-700">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="keyword">
+                  A message contains a keyword
+                </SelectItem>
+                <SelectItem value="first_inbound_message">
+                  Customer&apos;s first ever inbound message
+                </SelectItem>
+                <SelectItem value="manual">
+                  Manual only (no auto-trigger)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {state.trigger_type === "keyword" && (
+            <div>
+              <label className="mb-1 block text-xs text-slate-400 font-medium">
+                Keywords (comma-separated)
+              </label>
+              <KeywordInput
+                keywords={keywords}
+                onChange={(kw) =>
+                  setState((s) => ({
+                    ...s,
+                    trigger_config: {
+                      ...s.trigger_config,
+                      keywords: kw,
+                    },
+                  }))
+                }
+                placeholder="support, help, hi, bake"
+                className="bg-slate-800 border-slate-700"
+              />
+              <p className="mt-1 text-[11px] text-slate-500">
+                Incoming messages matching any of these words will launch this flow.
+              </p>
+            </div>
+          )}
+
+          <div className="border-t border-slate-800 pt-3">
+            <label className="mb-1 block text-xs text-slate-400 font-medium">
+              Entry Node
+            </label>
+            <NodeKeySelect
+              value={state.entry_node_id}
+              nodes={state.nodes}
+              onChange={(v) => setState((s) => ({ ...s, entry_node_id: v }))}
+              placeholder="Pick first node to execute…"
+              className="bg-slate-800 border-slate-700"
+            />
+            <p className="mt-1 text-[11px] text-slate-500">
+              The node where conversation starts when this flow is triggered.
+            </p>
+          </div>
+        </div>
+
+        <SheetFooter className="mt-auto border-t border-slate-800 pt-3">
+          <Button size="sm" onClick={onClose} className="w-full">
+            Done
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
