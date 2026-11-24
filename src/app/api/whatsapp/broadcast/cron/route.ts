@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendTemplateMessage } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
@@ -28,17 +29,36 @@ export async function POST(request: Request) {
 }
 
 async function handleCron(request?: Request) {
-  // If CRON_SECRET is configured, enforce authorization header
-  const expectedSecret = process.env.CRON_SECRET || process.env.BROADCAST_CRON_SECRET;
+  // CRON_SECRET or BROADCAST_CRON_SECRET or AUTOMATION_CRON_SECRET or authenticated user session
+  const expectedSecret = process.env.CRON_SECRET || process.env.BROADCAST_CRON_SECRET || process.env.AUTOMATION_CRON_SECRET;
+  let authorized = false;
+
   if (expectedSecret && request) {
     const authHeader = request.headers.get('authorization');
     const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
     const customHeader = request.headers.get('x-cron-secret');
     const supplied = bearer || customHeader;
 
-    if (supplied !== expectedSecret) {
-      return NextResponse.json({ error: 'Unauthorized: Invalid cron secret' }, { status: 401 });
+    if (supplied === expectedSecret) {
+      authorized = true;
     }
+  }
+
+  // If secret not supplied or didn't match, check if caller is an authenticated user session (e.g. dashboard trigger)
+  if (!authorized) {
+    try {
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        authorized = true;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!authorized) {
+    return NextResponse.json({ error: 'Unauthorized: Invalid cron secret or unauthenticated' }, { status: 401 });
   }
 
   const admin = supabaseAdmin();
@@ -49,9 +69,8 @@ async function handleCron(request?: Request) {
   const { data: dueBroadcasts, error } = await admin
     .from('broadcasts')
     .select('*')
-    .or(`status.eq.scheduled,and(status.eq.sending,updated_at.lte.${fiveMinAgo})`)
-    .lte('scheduled_at', now)
-    .order('scheduled_at', { ascending: true })
+    .or(`and(status.eq.scheduled,scheduled_at.lte.${now}),and(status.eq.sending,updated_at.lte.${fiveMinAgo})`)
+    .order('created_at', { ascending: true })
     .limit(5);
 
   if (error) {
@@ -142,6 +161,28 @@ async function handleCron(request?: Request) {
         }
       }
 
+      // Pre-resolve opted-out contacts to prevent sending broadcasts to opted-out contacts
+      let optedOutContactIds = new Set<string>();
+      if (broadcast.account_id && contactIds.length > 0) {
+        const { data: optedOutTags } = await admin
+          .from('tags')
+          .select('id')
+          .eq('account_id', broadcast.account_id)
+          .ilike('name', '%opted out%');
+
+        if (optedOutTags && optedOutTags.length > 0) {
+          const tagIds = optedOutTags.map((t) => t.id);
+          const { data: optedOutRows } = await admin
+            .from('contact_tags')
+            .select('contact_id')
+            .in('tag_id', tagIds)
+            .in('contact_id', contactIds);
+          if (optedOutRows) {
+            optedOutContactIds = new Set(optedOutRows.map((r) => r.contact_id));
+          }
+        }
+      }
+
       let failedCount = 0;
       const variables = (broadcast.template_variables as Record<string, { type: string; value: string }>) ?? {};
 
@@ -161,6 +202,16 @@ async function handleCron(request?: Request) {
         for (const recipient of batch) {
           // If already sent or delivered (e.g. from a prior run attempt), skip
           if (['sent', 'delivered', 'read'].includes(recipient.status)) {
+            continue;
+          }
+
+          // If contact opted out, mark recipient failed/opted-out and skip sending
+          if (recipient.contact?.id && optedOutContactIds.has(recipient.contact.id)) {
+            failedCount++;
+            await admin
+              .from('broadcast_recipients')
+              .update({ status: 'failed', error_message: 'Recipient opted out of broadcasts' })
+              .eq('id', recipient.id);
             continue;
           }
 

@@ -684,6 +684,17 @@ async function processMessage(
 
   const inboundText = contentText ?? message.text?.body ?? ''
 
+  // Meta WhatsApp Policy Compliance: Opt-out (STOP / UNSUBSCRIBE) & Opt-in (START)
+  const normalizedInbound = inboundText.trim().toLowerCase()
+  const OPT_OUT_KEYWORDS = new Set(['stop', 'unsubscribe', 'cancel', 'stopall', 'end', 'quit'])
+  const OPT_IN_KEYWORDS = new Set(['start', 'unstop'])
+
+  if (OPT_OUT_KEYWORDS.has(normalizedInbound)) {
+    await handleOptOut(accountId, configOwnerUserId, contactRecord.id)
+  } else if (OPT_IN_KEYWORDS.has(normalizedInbound)) {
+    await handleOptIn(accountId, contactRecord.id)
+  }
+
   // Quick Reply / Simple Bot match (e.g. '1', 'starter', 'payment', 'hi')
   if (!flowConsumed && inboundText) {
     matchAndSendQuickReply({
@@ -730,6 +741,77 @@ async function processMessage(
         conversation_id: conversation.id,
       },
     }).catch((err) => console.error('[automations] dispatch failed:', err))
+  }
+}
+
+async function handleOptOut(accountId: string, userId: string, contactId: string) {
+  try {
+    const admin = supabaseAdmin()
+    let tagId: string | null = null
+    const { data: existingTag } = await admin
+      .from('tags')
+      .select('id')
+      .eq('account_id', accountId)
+      .ilike('name', 'opted out')
+      .maybeSingle()
+
+    if (existingTag) {
+      tagId = existingTag.id
+    } else {
+      const { data: newTag, error: tagErr } = await admin
+        .from('tags')
+        .insert({
+          account_id: accountId,
+          user_id: userId,
+          name: 'Opted Out',
+          color: '#ef4444',
+        })
+        .select('id')
+        .single()
+      if (!tagErr && newTag) {
+        tagId = newTag.id
+      }
+    }
+
+    if (tagId) {
+      const { data: existingCt } = await admin
+        .from('contact_tags')
+        .select('id')
+        .eq('contact_id', contactId)
+        .eq('tag_id', tagId)
+        .maybeSingle()
+
+      if (!existingCt) {
+        await admin.from('contact_tags').insert({
+          contact_id: contactId,
+          tag_id: tagId,
+        })
+      }
+    }
+  } catch (err) {
+    console.error('[webhook] handleOptOut error:', err)
+  }
+}
+
+async function handleOptIn(accountId: string, contactId: string) {
+  try {
+    const admin = supabaseAdmin()
+    const { data: optedOutTags } = await admin
+      .from('tags')
+      .select('id')
+      .eq('account_id', accountId)
+      .ilike('name', '%opted out%')
+
+    if (optedOutTags && optedOutTags.length > 0) {
+      const tagIds = optedOutTags.map((t: { id: string }) => t.id)
+      await admin
+        .from('contact_tags')
+        .delete()
+        .eq('contact_id', contactId)
+        .in('tag_id', tagIds)
+    }
+  } catch (err) {
+    console.error('[webhook] handleOptIn error:', err)
   }
 }
 

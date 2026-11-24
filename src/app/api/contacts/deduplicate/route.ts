@@ -1,10 +1,32 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils';
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authErr,
+    } = await supabase.auth.getUser();
+
+    if (authErr || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const admin = supabaseAdmin();
+
+    // Verify user's profile and account membership
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('account_id, role')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!profile?.account_id) {
+      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+    }
 
     // Optional phone filter from request body
     let targetPhone: string | null = null;
@@ -17,10 +39,11 @@ export async function POST(request: Request) {
       // No JSON body provided, run for all duplicates
     }
 
-    // Fetch all contacts
+    // Fetch contacts scoped strictly to this account
     let query = admin
       .from('contacts')
       .select('id, user_id, account_id, phone, name, created_at')
+      .eq('account_id', profile.account_id)
       .order('created_at', { ascending: true });
 
     const { data: contacts, error: fetchErr } = await query;

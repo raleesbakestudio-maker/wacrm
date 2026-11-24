@@ -183,6 +183,22 @@ export function Step2SelectAudience({
         excludeSet = new Set((excludeRows ?? []).map((r) => r.contact_id));
       }
 
+      // Always exclude opted-out contacts
+      const { data: optedOutTags } = await supabase
+        .from('tags')
+        .select('id')
+        .ilike('name', '%opted out%');
+      if (optedOutTags && optedOutTags.length > 0) {
+        const { data: optedOutRows } = await supabase
+          .from('contact_tags')
+          .select('contact_id')
+          .in('tag_id', optedOutTags.map((t) => t.id));
+        if (optedOutRows && optedOutRows.length > 0) {
+          if (!excludeSet) excludeSet = new Set<string>();
+          for (const r of optedOutRows) excludeSet.add(r.contact_id);
+        }
+      }
+
       if (baseIds) {
         const effective = [...baseIds].filter(
           (id) => !excludeSet?.has(id),

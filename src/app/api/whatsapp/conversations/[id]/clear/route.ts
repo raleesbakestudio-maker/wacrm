@@ -21,6 +21,20 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Verify conversation ownership via caller's RLS-scoped client
+    const { data: conv, error: convErr } = await supabase
+      .from('conversations')
+      .select('id, account_id')
+      .eq('id', conversationId)
+      .maybeSingle();
+
+    if (convErr || !conv) {
+      return NextResponse.json(
+        { error: 'Conversation not found or access denied' },
+        { status: 404 }
+      );
+    }
+
     const admin = supabaseAdmin();
 
     // Delete all messages belonging to this conversation

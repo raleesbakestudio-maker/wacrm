@@ -37,7 +37,7 @@ export async function GET() {
     return NextResponse.json({ error: guard.error }, { status: guard.status });
   }
 
-  const { admin } = guard;
+  const { admin, accountId } = guard;
   const now = new Date();
 
   const getDateStr = (days: number) => {
@@ -46,6 +46,27 @@ export async function GET() {
   };
 
   try {
+    const { data: convRows } = await admin
+      .from('conversations')
+      .select('id')
+      .eq('account_id', accountId);
+
+    const convIds = (convRows ?? []).map((c) => c.id);
+
+    if (convIds.length === 0) {
+      return NextResponse.json({
+        counts: {
+          total: 0,
+          older30: 0,
+          older60: 0,
+          older90: 0,
+          older180: 0,
+          older365: 0,
+          conversations: 0,
+        },
+      });
+    }
+
     const [
       { count: totalCount },
       { count: older30Count },
@@ -53,15 +74,13 @@ export async function GET() {
       { count: older90Count },
       { count: older180Count },
       { count: older365Count },
-      { count: totalConversations },
     ] = await Promise.all([
-      admin.from('messages').select('*', { count: 'exact', head: true }),
-      admin.from('messages').select('*', { count: 'exact', head: true }).lt('created_at', getDateStr(30)),
-      admin.from('messages').select('*', { count: 'exact', head: true }).lt('created_at', getDateStr(60)),
-      admin.from('messages').select('*', { count: 'exact', head: true }).lt('created_at', getDateStr(90)),
-      admin.from('messages').select('*', { count: 'exact', head: true }).lt('created_at', getDateStr(180)),
-      admin.from('messages').select('*', { count: 'exact', head: true }).lt('created_at', getDateStr(365)),
-      admin.from('conversations').select('*', { count: 'exact', head: true }),
+      admin.from('messages').select('*', { count: 'exact', head: true }).in('conversation_id', convIds),
+      admin.from('messages').select('*', { count: 'exact', head: true }).in('conversation_id', convIds).lt('created_at', getDateStr(30)),
+      admin.from('messages').select('*', { count: 'exact', head: true }).in('conversation_id', convIds).lt('created_at', getDateStr(60)),
+      admin.from('messages').select('*', { count: 'exact', head: true }).in('conversation_id', convIds).lt('created_at', getDateStr(90)),
+      admin.from('messages').select('*', { count: 'exact', head: true }).in('conversation_id', convIds).lt('created_at', getDateStr(180)),
+      admin.from('messages').select('*', { count: 'exact', head: true }).in('conversation_id', convIds).lt('created_at', getDateStr(365)),
     ]);
 
     return NextResponse.json({
@@ -72,7 +91,7 @@ export async function GET() {
         older90: older90Count ?? 0,
         older180: older180Count ?? 0,
         older365: older365Count ?? 0,
-        conversations: totalConversations ?? 0,
+        conversations: convIds.length,
       },
     });
   } catch (err) {
@@ -95,7 +114,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: guard.error }, { status: guard.status });
   }
 
-  const { admin } = guard;
+  const { admin, accountId } = guard;
   const body = (await request.json().catch(() => null)) as { days?: number } | null;
 
   if (body === null || typeof body.days !== 'number' || body.days < 0) {
@@ -106,14 +125,28 @@ export async function POST(request: Request) {
   }
 
   try {
-    let deleteQuery = admin.from('messages').delete({ count: 'exact' });
+    const { data: convRows } = await admin
+      .from('conversations')
+      .select('id')
+      .eq('account_id', accountId);
+
+    const convIds = (convRows ?? []).map((c) => c.id);
+    if (convIds.length === 0) {
+      return NextResponse.json({
+        success: true,
+        deletedCount: 0,
+        days: body.days,
+      });
+    }
+
+    let deleteQuery = admin
+      .from('messages')
+      .delete({ count: 'exact' })
+      .in('conversation_id', convIds);
 
     if (body.days > 0) {
       const cutoffDate = new Date(Date.now() - body.days * 24 * 60 * 60 * 1000).toISOString();
       deleteQuery = deleteQuery.lt('created_at', cutoffDate);
-    } else {
-      // days === 0 means delete all messages (neq id to empty matches all rows)
-      deleteQuery = deleteQuery.neq('id', '00000000-0000-0000-0000-000000000000');
     }
 
     const { count, error } = await deleteQuery;

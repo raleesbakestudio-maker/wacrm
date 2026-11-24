@@ -203,6 +203,21 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       contacts = contacts.filter((c) => !excludedIds.has(c.id));
     }
 
+    // Always exclude contacts tagged "Opted Out" to comply with Meta WhatsApp Policy
+    const { data: optedOutTags } = await supabase
+      .from('tags')
+      .select('id')
+      .ilike('name', '%opted out%');
+    if (optedOutTags && optedOutTags.length > 0) {
+      const optedOutTagIds = optedOutTags.map((t) => t.id);
+      const { data: optedOutRows } = await supabase
+        .from('contact_tags')
+        .select('contact_id')
+        .in('tag_id', optedOutTagIds);
+      const optedOutIds = new Set((optedOutRows ?? []).map((r) => r.contact_id));
+      contacts = contacts.filter((c) => !optedOutIds.has(c.id));
+    }
+
     // De-duplicate contacts by normalized phone so contacts with multiple tags
     // or duplicate contact entries never receive the broadcast message twice.
     const seenPhones = new Set<string>();
