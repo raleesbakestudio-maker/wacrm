@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Broadcast } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -13,10 +13,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Radio, Plus, Loader2 } from 'lucide-react';
+import { Radio, Plus, Loader2, MessageSquare } from 'lucide-react';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { TemplateManager } from '@/components/settings/template-manager';
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't
@@ -71,10 +73,36 @@ function formatDateTime(dateStr?: string | null): string {
 
 export default function BroadcastsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const canCreate = useCan('send-messages');
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const queryTab = searchParams.get('tab');
+  const [tab, setTab] = useState<'campaigns' | 'templates'>(() =>
+    queryTab === 'templates' ? 'templates' : 'campaigns'
+  );
+  const lastSyncedQueryTabRef = useRef<string | null>(queryTab);
+
+  useEffect(() => {
+    if (queryTab !== lastSyncedQueryTabRef.current) {
+      lastSyncedQueryTabRef.current = queryTab;
+      if (queryTab === 'templates' || queryTab === 'campaigns') {
+        setTab(queryTab);
+      }
+    }
+  }, [queryTab]);
+
+  const onTabChange = (next: 'campaigns' | 'templates') => {
+    setTab(next);
+    lastSyncedQueryTabRef.current = next;
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', next);
+      window.history.replaceState(null, '', url.toString());
+    }
+  };
 
   // Used to kick off polling only while something is actively sending.
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -144,25 +172,6 @@ export default function BroadcastsPage() {
     };
   }, [anySending]);
 
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-red-400">{error}</p>
-        <Button variant="outline" onClick={() => window.location.reload()}>
-          Retry
-        </Button>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Top indeterminate progress bar: only visible while a broadcast
@@ -193,134 +202,177 @@ export default function BroadcastsPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Broadcasts</h1>
-          <p className="mt-1 text-sm text-slate-400">
-            Send bulk messages to your contacts using approved templates.
-          </p>
-        </div>
-        <GatedButton
-          canAct={canCreate}
-          gateReason="create broadcasts"
-          onClick={() => router.push('/broadcasts/new')}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          New Broadcast
-        </GatedButton>
+      <div>
+        <h1 className="text-2xl font-bold text-white">Broadcasts & Templates</h1>
+        <p className="mt-1 text-sm text-slate-400">
+          Send bulk WhatsApp® campaigns and manage your Meta approved message templates.
+        </p>
       </div>
 
-      {broadcasts.length === 0 ? (
-        <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-slate-800 bg-slate-900">
-          <Radio className="mb-3 h-10 w-10 text-slate-600" />
-          <p className="text-sm font-medium text-white">No broadcasts yet</p>
-          <p className="mt-1 text-xs text-slate-400">
-            Create your first broadcast to reach your contacts at scale.
-          </p>
-          <GatedButton
-            canAct={canCreate}
-            gateReason="create broadcasts"
-            onClick={() => router.push('/broadcasts/new')}
-            className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90"
+      <Tabs value={tab} onValueChange={(v) => onTabChange(v as 'campaigns' | 'templates')} className="w-full">
+        <TabsList className="bg-slate-900 border border-slate-800">
+          <TabsTrigger
+            value="campaigns"
+            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
           >
-            <Plus className="h-4 w-4" />
-            New Broadcast
-          </GatedButton>
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-slate-800 hover:bg-transparent">
-                <TableHead className="text-slate-400">Name</TableHead>
-                <TableHead className="hidden text-slate-400 md:table-cell">Template</TableHead>
-                <TableHead className="hidden text-right text-slate-400 sm:table-cell">
-                  Recipients
-                </TableHead>
-                <TableHead className="hidden text-slate-400 lg:table-cell">Delivery</TableHead>
-                <TableHead className="hidden text-slate-400 lg:table-cell">Read</TableHead>
-                <TableHead className="text-slate-400">Status</TableHead>
-                <TableHead className="text-slate-400 whitespace-nowrap">Date & Time</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {broadcasts.map((broadcast) => {
-                const status = getBroadcastStatus(broadcast.status);
-                return (
-                  <TableRow
-                    key={broadcast.id}
-                    className="cursor-pointer border-slate-800 hover:bg-slate-800/50"
-                    onClick={() => router.push(`/broadcasts/${broadcast.id}`)}
-                  >
-                    <TableCell className="font-medium text-white">
-                      <div>{broadcast.name}</div>
-                      <div className="sm:hidden mt-1 text-[11px] font-normal">
-                        {broadcast.status === 'scheduled' && broadcast.scheduled_at ? (
-                          <span className="text-blue-400 font-medium">
-                            📅 {formatDateTime(broadcast.scheduled_at)}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">
-                            {formatDateTime(broadcast.created_at)}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden text-slate-300 md:table-cell">
-                      {broadcast.template_name}
-                    </TableCell>
-                    <TableCell className="hidden text-right text-slate-300 tabular-nums sm:table-cell">
-                      {broadcast.total_recipients}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <RateCell
-                        value={broadcast.delivered_count}
-                        total={broadcast.total_recipients}
-                        color="bg-primary"
-                      />
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <RateCell
-                        value={broadcast.read_count}
-                        total={broadcast.total_recipients}
-                        color="bg-blue-500"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${status.classes}`}
-                      >
-                        {status.pulse && (
-                          <span className="relative flex h-1.5 w-1.5">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-400 opacity-75" />
-                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-yellow-400" />
-                          </span>
-                        )}
-                        {status.label}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-slate-300 whitespace-nowrap text-xs">
-                      {broadcast.status === 'scheduled' && broadcast.scheduled_at ? (
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-blue-400 font-medium">
-                            📅 {formatDateTime(broadcast.scheduled_at)}
-                          </span>
-                          <span className="text-[10px] text-slate-500">
-                            Created: {formatDateTime(broadcast.created_at)}
-                          </span>
-                        </div>
-                      ) : (
-                        <span>{formatDateTime(broadcast.created_at)}</span>
-                      )}
-                    </TableCell>
+            <Radio className="h-4 w-4 mr-2" />
+            Broadcast Campaigns
+          </TabsTrigger>
+          <TabsTrigger
+            value="templates"
+            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+          >
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Message Templates
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="campaigns" className="space-y-6 mt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-white">Campaigns</h2>
+              <p className="mt-0.5 text-sm text-slate-400">
+                Track delivery, read rates, and performance of all sent campaigns.
+              </p>
+            </div>
+            <GatedButton
+              canAct={canCreate}
+              gateReason="create broadcasts"
+              onClick={() => router.push('/broadcasts/new')}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              New Broadcast
+            </GatedButton>
+          </div>
+
+          {loading ? (
+            <div className="flex h-64 items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : error ? (
+            <div className="flex h-64 flex-col items-center justify-center gap-2">
+              <p className="text-sm text-red-400">{error}</p>
+              <Button variant="outline" onClick={() => fetchBroadcasts()}>
+                Retry
+              </Button>
+            </div>
+          ) : broadcasts.length === 0 ? (
+            <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-slate-800 bg-slate-900">
+              <Radio className="mb-3 h-10 w-10 text-slate-600" />
+              <p className="text-sm font-medium text-white">No broadcasts yet</p>
+              <p className="mt-1 text-xs text-slate-400">
+                Create your first broadcast to reach your contacts at scale.
+              </p>
+              <GatedButton
+                canAct={canCreate}
+                gateReason="create broadcasts"
+                onClick={() => router.push('/broadcasts/new')}
+                className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="h-4 w-4" />
+                New Broadcast
+              </GatedButton>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-slate-800 hover:bg-transparent">
+                    <TableHead className="text-slate-400">Name</TableHead>
+                    <TableHead className="hidden text-slate-400 md:table-cell">Template</TableHead>
+                    <TableHead className="hidden text-right text-slate-400 sm:table-cell">
+                      Recipients
+                    </TableHead>
+                    <TableHead className="hidden text-slate-400 lg:table-cell">Delivery</TableHead>
+                    <TableHead className="hidden text-slate-400 lg:table-cell">Read</TableHead>
+                    <TableHead className="text-slate-400">Status</TableHead>
+                    <TableHead className="text-slate-400 whitespace-nowrap">Date & Time</TableHead>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+                </TableHeader>
+                <TableBody>
+                  {broadcasts.map((broadcast) => {
+                    const status = getBroadcastStatus(broadcast.status);
+                    return (
+                      <TableRow
+                        key={broadcast.id}
+                        className="cursor-pointer border-slate-800 hover:bg-slate-800/50"
+                        onClick={() => router.push(`/broadcasts/${broadcast.id}`)}
+                      >
+                        <TableCell className="font-medium text-white">
+                          <div>{broadcast.name}</div>
+                          <div className="sm:hidden mt-1 text-[11px] font-normal">
+                            {broadcast.status === 'scheduled' && broadcast.scheduled_at ? (
+                              <span className="text-blue-400 font-medium">
+                                📅 {formatDateTime(broadcast.scheduled_at)}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">
+                                {formatDateTime(broadcast.created_at)}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden text-slate-300 md:table-cell">
+                          {broadcast.template_name}
+                        </TableCell>
+                        <TableCell className="hidden text-right text-slate-300 tabular-nums sm:table-cell">
+                          {broadcast.total_recipients}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <RateCell
+                            value={broadcast.delivered_count}
+                            total={broadcast.total_recipients}
+                            color="bg-primary"
+                          />
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <RateCell
+                            value={broadcast.read_count}
+                            total={broadcast.total_recipients}
+                            color="bg-blue-500"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${status.classes}`}
+                          >
+                            {status.pulse && (
+                              <span className="relative flex h-1.5 w-1.5">
+                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-400 opacity-75" />
+                                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-yellow-400" />
+                              </span>
+                            )}
+                            {status.label}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-slate-300 whitespace-nowrap text-xs">
+                          {broadcast.status === 'scheduled' && broadcast.scheduled_at ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-blue-400 font-medium">
+                                📅 {formatDateTime(broadcast.scheduled_at)}
+                              </span>
+                              <span className="text-[10px] text-slate-500">
+                                Created: {formatDateTime(broadcast.created_at)}
+                              </span>
+                            </div>
+                          ) : (
+                            <span>{formatDateTime(broadcast.created_at)}</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="templates" className="space-y-6 mt-6">
+          {tab === 'templates' && <TemplateManager />}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

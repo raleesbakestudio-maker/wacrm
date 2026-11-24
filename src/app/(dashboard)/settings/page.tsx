@@ -4,7 +4,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import {
   Settings,
-  MessageSquare,
   User,
   Palette,
   UsersRound,
@@ -12,7 +11,6 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
-import { TemplateManager } from '@/components/settings/template-manager';
 import { ProfileForm } from '@/components/settings/profile-form';
 import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
@@ -24,7 +22,6 @@ const TAB_VALUES = [
   'profile',
   'members',
   'whatsapp',
-  'templates',
   'data',
   'appearance',
 ] as const;
@@ -54,6 +51,10 @@ export default function SettingsPage() {
     }
     if (queryTab === 'tags') {
       router.replace('/contacts?tab=tags');
+      return;
+    }
+    if (queryTab === 'templates') {
+      router.replace('/broadcasts?tab=templates');
       return;
     }
 
@@ -90,7 +91,7 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">Settings</h1>
         <p className="text-sm text-slate-400 mt-1">
-          Manage your profile, team & staff members, WhatsApp® integration, message templates, and account preferences.
+          Manage your profile, team & staff members, WhatsApp® integration, and system preferences.
         </p>
       </div>
 
@@ -117,13 +118,6 @@ export default function SettingsPage() {
             >
               <Settings className="size-4" />
               WhatsApp Config
-            </TabsTrigger>
-            <TabsTrigger
-              value="templates"
-              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-            >
-              <MessageSquare className="size-4" />
-              Templates
             </TabsTrigger>
             <TabsTrigger
               value="data"
@@ -158,10 +152,6 @@ export default function SettingsPage() {
 
         <TabsContent value="whatsapp">
           {tab === 'whatsapp' && <WhatsAppConfig />}
-        </TabsContent>
-
-        <TabsContent value="templates">
-          {tab === 'templates' && <TemplateManager />}
         </TabsContent>
 
         <TabsContent value="data">
