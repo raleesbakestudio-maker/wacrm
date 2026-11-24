@@ -34,6 +34,15 @@ describe("matchReplyId", () => {
     };
     expect(matchReplyId(node, "yes")).toBe("confirmed");
     expect(matchReplyId(node, "no")).toBe("declined");
+    // Case-insensitivity & trimmed
+    expect(matchReplyId(node, "YES ")).toBe("confirmed");
+    expect(matchReplyId(node, "No")).toBe("declined");
+    // Button title match
+    expect(matchReplyId(node, "Yes")).toBe("confirmed");
+    // Numeric index match
+    expect(matchReplyId(node, "1")).toBe("confirmed");
+    expect(matchReplyId(node, "2")).toBe("declined");
+    expect(matchReplyId(node, "btn_1")).toBe("confirmed");
   });
 
   it("returns null when no button reply_id matches", () => {

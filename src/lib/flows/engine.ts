@@ -73,16 +73,59 @@ export function matchReplyId(
   node: { node_type: string; config: Record<string, unknown> },
   reply_id: string,
 ): string | null {
+  if (!reply_id) return null;
+  const clean = reply_id.trim();
+  const lower = clean.toLowerCase();
+
   if (node.node_type === "send_buttons") {
     const cfg = node.config as unknown as SendButtonsNodeConfig;
-    const hit = cfg.buttons?.find((b) => b.reply_id === reply_id);
-    return hit?.next_node_key ?? null;
+    if (!Array.isArray(cfg.buttons) || cfg.buttons.length === 0) return null;
+
+    // 1. Exact match on reply_id
+    let hit = cfg.buttons.find((b) => b.reply_id === clean);
+    if (hit) return hit.next_node_key || null;
+
+    // 2. Case-insensitive match on reply_id
+    hit = cfg.buttons.find(
+      (b) => b.reply_id && b.reply_id.trim().toLowerCase() === lower,
+    );
+    if (hit) return hit.next_node_key || null;
+
+    // 3. Match against button visible title (e.g. user typed "Yes" or Meta returned title)
+    hit = cfg.buttons.find(
+      (b) => b.title && b.title.trim().toLowerCase() === lower,
+    );
+    if (hit) return hit.next_node_key || null;
+
+    // 4. Numeric index match ("1" for 1st button, "2" for 2nd button, "btn_1" for 1st)
+    if (/^[1-3]$/.test(clean)) {
+      const idx = parseInt(clean, 10) - 1;
+      if (cfg.buttons[idx]) return cfg.buttons[idx].next_node_key || null;
+    }
+    const btnNum = clean.match(/^btn_([1-3])$/i);
+    if (btnNum) {
+      const idx = parseInt(btnNum[1], 10) - 1;
+      if (cfg.buttons[idx]) return cfg.buttons[idx].next_node_key || null;
+    }
+
+    return null;
   }
+
   if (node.node_type === "send_list") {
     const cfg = node.config as unknown as SendListNodeConfig;
+    let rowIndex = 0;
     for (const section of cfg.sections ?? []) {
-      const hit = section.rows?.find((r) => r.reply_id === reply_id);
-      if (hit) return hit.next_node_key;
+      for (const row of section.rows ?? []) {
+        rowIndex += 1;
+        if (row.reply_id === clean) return row.next_node_key || null;
+        if (row.reply_id && row.reply_id.trim().toLowerCase() === lower) {
+          return row.next_node_key || null;
+        }
+        if (row.title && row.title.trim().toLowerCase() === lower) {
+          return row.next_node_key || null;
+        }
+        if (clean === String(rowIndex)) return row.next_node_key || null;
+      }
     }
     return null;
   }
@@ -372,7 +415,10 @@ async function sendButtonsAndSuspend(
     bodyText: cfg.text,
     headerText: cfg.header_text,
     footerText: cfg.footer_text,
-    buttons: cfg.buttons.map((b) => ({ id: b.reply_id, title: b.title })),
+    buttons: cfg.buttons.map((b) => ({
+      id: b.reply_id,
+      title: (b.title || b.reply_id).slice(0, 20),
+    })),
   });
   await logEvent(db, run.id, "message_sent", node.node_key, {
     node_type: "send_buttons",
@@ -817,7 +863,16 @@ async function advanceFromNodeKey(
       continue;
     }
     if (node.node_type === "send_buttons") {
-      await sendButtonsAndSuspend(db, run, node);
+      try {
+        await sendButtonsAndSuspend(db, run, node);
+      } catch (err) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "send_buttons_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        await endRun(db, run.id, "failed", "send_buttons_failed");
+        return { outcome: "completed" };
+      }
       // Persist the new current_node_key via optimistic UPDATE.
       const advanced = await advanceCurrentNodeKey(
         db,
@@ -833,7 +888,16 @@ async function advanceFromNodeKey(
       return { outcome: "advanced" };
     }
     if (node.node_type === "send_list") {
-      await sendListAndSuspend(db, run, node);
+      try {
+        await sendListAndSuspend(db, run, node);
+      } catch (err) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "send_list_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        await endRun(db, run.id, "failed", "send_list_failed");
+        return { outcome: "completed" };
+      }
       const advanced = await advanceCurrentNodeKey(
         db,
         run.id,
@@ -1006,6 +1070,15 @@ export async function dispatchInboundToFlows(
       return handleReplyForActiveRun(db, activeRun, input.message, nodes);
     }
 
+    // No active run, BUT customer tapped an interactive button!
+    // Resume/start from the matched button's branch so customer doesn't get ignored.
+    if (input.message.kind === "interactive_reply") {
+      const buttonResult = await handleInteractiveReplyWithoutActiveRun(db, input);
+      if (buttonResult.consumed) {
+        return buttonResult;
+      }
+    }
+
     // No active run → look for a flow whose entry trigger matches.
     const flow = await findEntryFlow(
       db,
@@ -1065,17 +1138,24 @@ async function handleReplyForActiveRun(
   }
 
   // Two ways a reply can advance:
-  //   1. Interactive button/list tap on a send_buttons/send_list node.
+  //   1. Interactive button/list tap on a send_buttons/send_list node (or typed button text).
   //   2. Text reply on a collect_input node — capture into vars.
   //
   // Everything else falls through to the fallback policy below.
   let matched: string | null = null;
   if (
-    message.kind === "interactive_reply" &&
-    (currentNode.node_type === "send_buttons" ||
-      currentNode.node_type === "send_list")
+    currentNode.node_type === "send_buttons" ||
+    currentNode.node_type === "send_list"
   ) {
-    matched = matchReplyId(currentNode, message.reply_id);
+    if (message.kind === "interactive_reply") {
+      matched = matchReplyId(currentNode, message.reply_id);
+      if (!matched && message.reply_title) {
+        matched = matchReplyId(currentNode, message.reply_title);
+      }
+    } else if (message.kind === "text") {
+      // Customer typed the button text or option number (e.g. "Yes", "No", "1", "2")
+      matched = matchReplyId(currentNode, message.text);
+    }
   } else if (
     message.kind === "text" &&
     currentNode.node_type === "collect_input"
@@ -1282,6 +1362,151 @@ async function startNewRun(
 
   // Run the advance loop starting from the entry node.
   const outcome = await advanceFromNodeKey(db, run, flow.entry_node_id!, nodes);
+  return {
+    consumed: true,
+    flow_run_id: run.id,
+    outcome: outcome.outcome === "advanced" ? "started" : outcome.outcome,
+  };
+}
+
+async function handleInteractiveReplyWithoutActiveRun(
+  db: AdminClient,
+  input: DispatchInboundInput,
+): Promise<DispatchInboundResult> {
+  const replyId =
+    input.message.kind === "interactive_reply" ? input.message.reply_id : "";
+  const replyTitle =
+    input.message.kind === "interactive_reply"
+      ? input.message.reply_title
+      : "";
+  if (!replyId && !replyTitle) {
+    return { consumed: false, outcome: "no_match" };
+  }
+
+  // 1. Try to find the flow and node from the most recent flow run for this contact
+  const { data: recentRuns } = await db
+    .from("flow_runs")
+    .select("*")
+    .eq("account_id", input.accountId)
+    .eq("contact_id", input.contactId)
+    .order("started_at", { ascending: false })
+    .limit(3);
+
+  for (const run of (recentRuns as FlowRunRow[] | null) ?? []) {
+    const nodes = await loadAllNodes(db, run.flow_id);
+    for (const [, node] of nodes) {
+      if (node.node_type === "send_buttons" || node.node_type === "send_list") {
+        let matched = matchReplyId(node, replyId);
+        if (!matched && replyTitle) {
+          matched = matchReplyId(node, replyTitle);
+        }
+        if (matched) {
+          const flow = await loadFlow(db, run.flow_id);
+          if (flow && flow.status === "active") {
+            return startRunFromNode(db, flow, input, nodes, matched, run.vars ?? {});
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Fallback: Search across all active flows for this account
+  const { data: activeFlows } = await db
+    .from("flows")
+    .select("*")
+    .eq("account_id", input.accountId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
+
+  for (const flow of (activeFlows as FlowRow[] | null) ?? []) {
+    const nodes = await loadAllNodes(db, flow.id);
+    for (const [, node] of nodes) {
+      if (node.node_type === "send_buttons" || node.node_type === "send_list") {
+        let matched = matchReplyId(node, replyId);
+        if (!matched && replyTitle) {
+          matched = matchReplyId(node, replyTitle);
+        }
+        if (matched) {
+          return startRunFromNode(db, flow, input, nodes, matched, {});
+        }
+      }
+    }
+  }
+
+  return { consumed: false, outcome: "no_match" };
+}
+
+async function startRunFromNode(
+  db: AdminClient,
+  flow: FlowRow,
+  input: DispatchInboundInput,
+  nodes: Map<string, FlowNodeRow>,
+  startNodeKey: string,
+  initialVars: Record<string, unknown> = {},
+): Promise<DispatchInboundResult> {
+  // If an active run exists for this contact, end it so the new branch runs cleanly
+  const activeRun = await loadActiveRunForContact(db, flow.account_id, input.contactId);
+  if (activeRun) {
+    await endRun(db, activeRun.id, "handed_off", "superseded_by_button_tap");
+  }
+
+  // Populate contact vars if missing
+  let runtimeVars = { ...initialVars };
+  if (input.contactId && (!runtimeVars.name || !runtimeVars.phone)) {
+    try {
+      const { data: contact } = await db
+        .from("contacts")
+        .select("name, phone, first_name")
+        .eq("id", input.contactId)
+        .maybeSingle();
+      if (contact) {
+        const firstName =
+          contact.first_name ||
+          (contact.name ? contact.name.trim().split(/\s+/)[0] : "");
+        runtimeVars = {
+          name: contact.name || "",
+          first_name: firstName,
+          phone: contact.phone || "",
+          "contact.name": contact.name || "",
+          "contact.first_name": firstName,
+          "contact.phone": contact.phone || "",
+          ...runtimeVars,
+        };
+      }
+    } catch {
+      // Non-critical
+    }
+  }
+
+  const { data: inserted, error: insErr } = await db
+    .from("flow_runs")
+    .insert({
+      flow_id: flow.id,
+      account_id: flow.account_id,
+      user_id: flow.user_id,
+      contact_id: input.contactId,
+      conversation_id: input.conversationId,
+      status: "active",
+      current_node_key: startNodeKey,
+      vars: runtimeVars,
+    })
+    .select("*")
+    .maybeSingle();
+
+  if (insErr || !inserted) {
+    return { consumed: false, outcome: "no_match" };
+  }
+
+  const run = inserted as FlowRunRow;
+  await logEvent(db, run.id, "started", startNodeKey, {
+    flow_id: flow.id,
+    trigger_type: "interactive_reply",
+    reply_id:
+      input.message.kind === "interactive_reply" ? input.message.reply_id : null,
+    meta_message_id: input.message.meta_message_id,
+  });
+
+  const outcome = await advanceFromNodeKey(db, run, startNodeKey, nodes);
   return {
     consumed: true,
     flow_run_id: run.id,
