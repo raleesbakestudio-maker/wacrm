@@ -35,7 +35,6 @@ type ConnectionStatus = 'connected' | 'disconnected' | 'unknown';
 type ResetReason = 'token_corrupted' | 'meta_api_error' | null;
 
 export function WhatsAppConfig() {
-  const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
@@ -82,6 +81,7 @@ export function WhatsAppConfig() {
   const fetchConfig = useCallback(async (userId: string) => {
     setLoading(true);
     try {
+      const supabase = createClient();
       // Load form values from Supabase (shows what's in DB)
       const { data, error } = await supabase
         .from('whatsapp_config')
@@ -143,7 +143,7 @@ export function WhatsAppConfig() {
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     if (authLoading) return;
@@ -152,7 +152,7 @@ export function WhatsAppConfig() {
       return;
     }
     fetchConfig(user.id);
-  }, [authLoading, user, fetchConfig]);
+  }, [authLoading, user?.id, fetchConfig]);
 
   async function handleSave() {
     if (!phoneNumberId.trim()) {

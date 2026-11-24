@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Settings,
   MessageSquare,
@@ -49,10 +49,15 @@ export default function SettingsPage() {
     isTabValue(queryTab) ? queryTab : 'profile'
   );
 
-  // Sync if URL query changes externally (e.g. from sidebar menu navigation)
+  // Track the last known queryTab so we only sync when the URL actually changes from external navigation
+  const lastSyncedQueryTabRef = useRef<string | null>(queryTab);
+
   useEffect(() => {
-    if (isTabValue(queryTab) && queryTab !== tab) {
-      setTab(queryTab);
+    if (queryTab !== lastSyncedQueryTabRef.current) {
+      lastSyncedQueryTabRef.current = queryTab;
+      if (isTabValue(queryTab) && queryTab !== tab) {
+        setTab(queryTab);
+      }
     }
   }, [queryTab, tab]);
 
@@ -66,9 +71,14 @@ export default function SettingsPage() {
 
   const onChange = (next: TabValue) => {
     setTab(next);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('tab', next);
-    router.replace(`/settings?${params.toString()}`, { scroll: false });
+    lastSyncedQueryTabRef.current = next;
+
+    // Use replaceState for instant UI responsiveness without router blocking
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', next);
+      window.history.replaceState(null, '', url.toString());
+    }
   };
 
   return (
@@ -143,37 +153,41 @@ export default function SettingsPage() {
         </div>
 
         <TabsContent value="profile" className="space-y-6">
-          <ProfileForm />
-          <PasswordForm />
-          <SessionsCard />
+          {tab === 'profile' && (
+            <>
+              <ProfileForm />
+              <PasswordForm />
+              <SessionsCard />
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="members">
-          <MembersTab />
+          {tab === 'members' && <MembersTab />}
         </TabsContent>
 
         <TabsContent value="whatsapp">
-          <WhatsAppConfig />
+          {tab === 'whatsapp' && <WhatsAppConfig />}
         </TabsContent>
 
         <TabsContent value="replies">
-          <QuickRepliesTab />
+          {tab === 'replies' && <QuickRepliesTab />}
         </TabsContent>
 
         <TabsContent value="templates">
-          <TemplateManager />
+          {tab === 'templates' && <TemplateManager />}
         </TabsContent>
 
         <TabsContent value="tags">
-          <TagManager />
+          {tab === 'tags' && <TagManager />}
         </TabsContent>
 
         <TabsContent value="data">
-          <DataRetentionTab />
+          {tab === 'data' && <DataRetentionTab />}
         </TabsContent>
 
         <TabsContent value="appearance">
-          <AppearancePanel />
+          {tab === 'appearance' && <AppearancePanel />}
         </TabsContent>
       </Tabs>
     </div>
