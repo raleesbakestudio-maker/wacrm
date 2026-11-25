@@ -27,6 +27,7 @@ import { QuickActions } from '@/components/dashboard/quick-actions'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
+import { MetaBillingCard } from '@/components/dashboard/meta-billing-card'
 
 type RangeDays = 7 | 30 | 90
 
@@ -160,6 +161,9 @@ export default function DashboardPage() {
 
       {/* Quick actions */}
       <QuickActions />
+
+      {/* Meta WhatsApp Billing & Cost Tracker */}
+      <MetaBillingCard />
 
       {/* Charts row */}
       <div>

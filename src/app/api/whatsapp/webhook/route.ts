@@ -85,6 +85,11 @@ interface WhatsAppWebhookEntry {
           message?: string
           error_data?: { details?: string }
         }>
+        pricing?: {
+          billable?: boolean
+          pricing_model?: string
+          category?: string
+        }
       }>
     }
     field: string
@@ -355,12 +360,26 @@ async function handleStatusUpdate(status: {
     message?: string
     error_data?: { details?: string }
   }>
+  pricing?: {
+    billable?: boolean
+    pricing_model?: string
+    category?: string
+  }
 }) {
   // 1) Mirror onto messages (legacy behavior) — Meta's status values
   //    already match the CHECK constraint on messages.status.
+  const msgUpdate: Record<string, unknown> = { status: status.status }
+  if (status.pricing) {
+    if (status.pricing.category) {
+      msgUpdate.pricing_category = status.pricing.category.toLowerCase()
+    }
+    if (typeof status.pricing.billable === 'boolean') {
+      msgUpdate.is_billable = status.pricing.billable
+    }
+  }
   const { error: msgErr } = await supabaseAdmin()
     .from('messages')
-    .update({ status: status.status })
+    .update(msgUpdate)
     .eq('message_id', status.id)
 
   if (msgErr) {
@@ -393,6 +412,14 @@ async function handleStatusUpdate(status: {
   if (status.status === 'sent' && !('sent_at' in update)) update.sent_at = tsIso
   if (status.status === 'delivered') update.delivered_at = tsIso
   if (status.status === 'read') update.read_at = tsIso
+  if (status.pricing) {
+    if (status.pricing.category) {
+      update.pricing_category = status.pricing.category.toLowerCase()
+    }
+    if (typeof status.pricing.billable === 'boolean') {
+      update.is_billable = status.pricing.billable
+    }
+  }
   if (status.status === 'failed' && status.errors && status.errors.length > 0) {
     const err = status.errors[0]
     const parts = [
