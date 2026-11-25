@@ -2,6 +2,17 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+
+  // Skip Supabase auth network roundtrip for webhook & cron routes —
+  // they authenticate via Meta HMAC signature or CRON_SECRET, not cookies.
+  if (
+    pathname.startsWith('/api/whatsapp/webhook') ||
+    pathname.endsWith('/cron')
+  ) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(

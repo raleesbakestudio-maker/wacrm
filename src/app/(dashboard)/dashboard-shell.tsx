@@ -47,9 +47,10 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, router]);
 
-  // Periodic background cron heartbeat (every 60s) to trigger any scheduled broadcasts / automations
+  // Periodic background cron heartbeat (every 60s) — only needed in local dev;
+  // in production Vercel Cron (vercel.json) already invokes these endpoints every minute.
   useEffect(() => {
-    if (!user) return;
+    if (!user || process.env.NODE_ENV !== "development") return;
     const triggerCrons = () => {
       void fetch("/api/whatsapp/broadcast/cron", { method: "POST" }).catch(() => {});
       void fetch("/api/automations/cron", { method: "POST" }).catch(() => {});

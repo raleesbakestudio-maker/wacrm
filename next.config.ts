@@ -54,6 +54,17 @@ const SECURITY_HEADERS = [
 ] as const;
 
 const nextConfig: NextConfig = {
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "date-fns",
+      "recharts",
+      "@xyflow/react",
+      "@dnd-kit/core",
+      "@dnd-kit/sortable",
+      "@base-ui/react",
+    ],
+  },
   /**
    * Cache-Control policy.
    *

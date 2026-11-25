@@ -84,7 +84,8 @@ export function ConversationList({
           .from("conversations")
           .select("*, contact:contacts(*)")
           .not("last_message_text", "is", null)
-          .order("last_message_at", { ascending: false }),
+          .order("last_message_at", { ascending: false })
+          .limit(200),
         supabase.from("tags").select("*").order("name"),
       ]);
 
