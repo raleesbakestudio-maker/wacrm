@@ -86,12 +86,12 @@ async function handleCron(request?: Request) {
   let processedCount = 0;
 
   for (const broadcast of dueBroadcasts) {
-    // Atomically claim the broadcast
+    // Atomically claim the broadcast (must still be scheduled, or stale in sending)
     const { data: claimed } = await admin
       .from('broadcasts')
       .update({ status: 'sending', updated_at: now })
       .eq('id', broadcast.id)
-      .in('status', ['scheduled', 'sending'])
+      .or(`status.eq.scheduled,and(status.eq.sending,updated_at.lte.${fiveMinAgo})`)
       .select('id')
       .maybeSingle();
 

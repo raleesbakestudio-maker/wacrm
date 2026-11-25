@@ -692,33 +692,73 @@ async function processMessage(
   // ============================================================
   // Check if this inbound message is a tap on a Broadcast Template Quick-Reply button!
   let broadcastTargetFlowId: string | undefined = undefined
-  if (message.context?.id && (message.type === 'button' || message.type === 'interactive')) {
+  if (message.type === 'button' || message.type === 'interactive') {
     try {
       const admin = supabaseAdmin()
-      const { data: bRecip } = await admin
-        .from('broadcast_recipients')
-        .select('broadcast_id')
-        .eq('whatsapp_message_id', message.context.id)
-        .maybeSingle()
+      const btnText = message.button?.text || message.button?.payload || contentText || interactiveReplyId
+      const matchButtonFlow = (bFlows: Record<string, string> | null | undefined): string | undefined => {
+        if (!bFlows || typeof bFlows !== 'object' || !btnText) return undefined
+        const raw = btnText.trim()
+        const lower = raw.toLowerCase()
+        for (const [k, v] of Object.entries(bFlows)) {
+          if (v && (k === raw || k.trim().toLowerCase() === lower)) {
+            return v
+          }
+        }
+        return undefined
+      }
 
-      if (bRecip?.broadcast_id) {
-        const { data: bCast } = await admin
-          .from('broadcasts')
-          .select('button_flows')
-          .eq('id', bRecip.broadcast_id)
+      // 1. Direct match by context.id -> broadcast_recipients.whatsapp_message_id
+      if (message.context?.id) {
+        const { data: bRecip } = await admin
+          .from('broadcast_recipients')
+          .select('broadcast_id')
+          .eq('whatsapp_message_id', message.context.id)
           .maybeSingle()
 
-        if (bCast?.button_flows && typeof bCast.button_flows === 'object') {
-          const bFlows = bCast.button_flows as Record<string, string>
-          const btnText = message.button?.text || message.button?.payload || contentText || interactiveReplyId
-          if (btnText) {
-            const raw = btnText.trim()
-            const lower = raw.toLowerCase()
-            for (const [k, v] of Object.entries(bFlows)) {
-              if (v && (k === raw || k.trim().toLowerCase() === lower)) {
-                broadcastTargetFlowId = v
-                break
-              }
+        if (bRecip?.broadcast_id) {
+          const { data: bCast } = await admin
+            .from('broadcasts')
+            .select('button_flows')
+            .eq('id', bRecip.broadcast_id)
+            .maybeSingle()
+          broadcastTargetFlowId = matchButtonFlow(bCast?.button_flows as Record<string, string> | null)
+        }
+      }
+
+      // 2. Fallback: If context.id was overwritten by a retry or omitted by the WhatsApp client,
+      //    check the contact's recent broadcasts (last 48h) that have matching button_flows.
+      //    Skip if context.id belongs to an in-flow bot prompt so we never hijack an active flow button.
+      if (!broadcastTargetFlowId && btnText) {
+        let isBotPromptReply = false
+        if (message.context?.id) {
+          const { data: ctxMsg } = await admin
+            .from('messages')
+            .select('sender_type')
+            .eq('message_id', message.context.id)
+            .maybeSingle()
+          if (ctxMsg?.sender_type === 'bot') {
+            isBotPromptReply = true
+          }
+        }
+
+        if (!isBotPromptReply) {
+          const sinceIso = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+          const { data: recentBroadcasts } = await admin
+            .from('broadcast_recipients')
+            .select('broadcast_id, broadcasts!inner(account_id, button_flows)')
+            .eq('contact_id', contactRecord.id)
+            .eq('broadcasts.account_id', accountId)
+            .gte('created_at', sinceIso)
+            .order('created_at', { ascending: false })
+            .limit(5)
+
+          for (const row of recentBroadcasts ?? []) {
+            const b = (row as { broadcasts?: { button_flows?: Record<string, string> } }).broadcasts
+            const matched = matchButtonFlow(b?.button_flows)
+            if (matched) {
+              broadcastTargetFlowId = matched
+              break
             }
           }
         }
