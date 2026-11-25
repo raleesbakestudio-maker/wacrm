@@ -223,7 +223,7 @@ export function MetaBillingCard() {
       {/* Compact rate legend */}
       {data && (
         <p className="mt-3 text-[11px] text-slate-500 leading-relaxed">
-          India Meta rates: Marketing ~₹{data.rates.marketing}/msg · Utility/Auth ~₹
+          India Meta rates (excl. 18% GST): Marketing ₹{data.rates.marketing}/msg · Utility/Auth ₹
           {data.rates.utility}/msg · 24h customer replies ₹0 (Free).
         </p>
       )}

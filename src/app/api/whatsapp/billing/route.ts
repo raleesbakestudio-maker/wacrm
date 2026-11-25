@@ -3,11 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { decrypt } from '@/lib/whatsapp/encryption';
 
-// Standard India WhatsApp Business Platform rates (INR) per delivered message
+// Official Meta WhatsApp Business Platform rates for India (INR, excl. 18% GST) per delivered message
 const INDIA_RATES_INR = {
-  marketing: 0.88,
-  utility: 0.125,
-  authentication: 0.125,
+  marketing: 0.8631,
+  utility: 0.115,
+  authentication: 0.115,
   service: 0,
 } as const;
 
