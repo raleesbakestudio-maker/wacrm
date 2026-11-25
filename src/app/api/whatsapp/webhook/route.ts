@@ -1,4 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
+
+export const maxDuration = 60
 import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
@@ -193,13 +195,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  // Await processing so Vercel Serverless runtime does not freeze/abort the execution
-  // before Supabase DB writes and Realtime events finish. Meta timeout is 20s.
-  try {
-    await processWebhook(body)
-  } catch (error) {
-    console.error('Error processing webhook:', error)
-  }
+  // Process webhook in Next.js `after()` so Meta receives 200 OK in <50ms
+  // (preventing Meta's webhook timeout and 1+ minute retry delays), while
+  // Vercel keeps the serverless function alive until flows/delays complete.
+  after(async () => {
+    try {
+      await processWebhook(body)
+    } catch (error) {
+      console.error('Error processing webhook:', error)
+    }
+  })
 
   return NextResponse.json({ status: 'received' }, { status: 200 })
 }
