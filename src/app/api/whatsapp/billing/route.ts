@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { decrypt } from '@/lib/whatsapp/encryption';
@@ -41,7 +41,6 @@ function addMessageToBucket(
   billable: boolean | null,
 ) {
   const cat = category.toLowerCase();
-  // Explicitly non-billable (e.g. free entry-point / 24h customer service window)
   if (billable === false || cat === 'service') {
     bucket.serviceCount += 1;
     return;
@@ -77,11 +76,7 @@ async function fetchMetaLiveAnalytics(
   accessToken: string,
   startUnix: number,
   endUnix: number,
-): Promise<{
-  currency: string;
-  month: PricingBucket;
-  today: PricingBucket;
-} | null> {
+): Promise<PricingBucket | null> {
   try {
     const analyticsExpr = `pricing_analytics.start(${startUnix}).end(${endUnix}).granularity(DAILY).dimensions(["PRICING_CATEGORY","PRICING_TYPE"])`;
     const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(wabaId)}?fields=${encodeURIComponent(analyticsExpr)}`;
@@ -96,52 +91,79 @@ async function fetchMetaLiveAnalytics(
     const points = json?.pricing_analytics?.data?.[0]?.data_points;
     if (!Array.isArray(points) || points.length === 0) return null;
 
-    const now = new Date();
-    const todayStartUnix = Math.floor(
-      new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000,
-    );
-
-    const month = emptyBucket();
-    const today = emptyBucket();
+    const bucket = emptyBucket();
 
     for (const pt of points) {
       const vol = Number(pt.volume ?? 0);
       const cost = Number(pt.cost ?? 0);
       const cat = (pt.pricing_category ?? 'SERVICE').toUpperCase();
-      const isFree = pt.pricing_type === 'FREE_CUSTOMER_SERVICE' || pt.pricing_type === 'FREE_ENTRY_POINT' || cat === 'SERVICE';
-      const isToday = (pt.start ?? 0) >= todayStartUnix;
+      const isFree =
+        pt.pricing_type === 'FREE_CUSTOMER_SERVICE' ||
+        pt.pricing_type === 'FREE_ENTRY_POINT' ||
+        cat === 'SERVICE';
 
-      const applyTo = (b: PricingBucket) => {
-        if (isFree) {
-          b.serviceCount += vol;
-        } else if (cat === 'MARKETING') {
-          b.marketingCount += vol;
-          b.marketingCost += cost;
-          b.totalCost += cost;
-        } else if (cat === 'UTILITY') {
-          b.utilityCount += vol;
-          b.utilityCost += cost;
-          b.totalCost += cost;
-        } else if (cat === 'AUTHENTICATION') {
-          b.authCount += vol;
-          b.authCost += cost;
-          b.totalCost += cost;
-        } else {
-          b.serviceCount += vol;
-        }
-      };
-
-      applyTo(month);
-      if (isToday) applyTo(today);
+      if (isFree) {
+        bucket.serviceCount += vol;
+      } else if (cat === 'MARKETING') {
+        bucket.marketingCount += vol;
+        bucket.marketingCost += cost;
+        bucket.totalCost += cost;
+      } else if (cat === 'UTILITY') {
+        bucket.utilityCount += vol;
+        bucket.utilityCost += cost;
+        bucket.totalCost += cost;
+      } else if (cat === 'AUTHENTICATION') {
+        bucket.authCount += vol;
+        bucket.authCost += cost;
+        bucket.totalCost += cost;
+      } else {
+        bucket.serviceCount += vol;
+      }
     }
 
-    return { currency: 'INR', month, today };
+    return bucket;
   } catch {
     return null;
   }
 }
 
-export async function GET() {
+function resolveDateRange(req: NextRequest): { start: Date; end: Date } {
+  const { searchParams } = new URL(req.url);
+  const preset = searchParams.get('preset') || 'month';
+  const fromParam = searchParams.get('from');
+  const toParam = searchParams.get('to');
+  const now = new Date();
+
+  if (preset === 'custom' && fromParam) {
+    const parsedFrom = new Date(`${fromParam}T00:00:00`);
+    const parsedTo = toParam ? new Date(`${toParam}T23:59:59.999`) : now;
+    if (!Number.isNaN(parsedFrom.getTime()) && !Number.isNaN(parsedTo.getTime())) {
+      const start = parsedFrom <= parsedTo ? parsedFrom : parsedTo;
+      const end = parsedFrom <= parsedTo ? parsedTo : parsedFrom;
+      return { start, end };
+    }
+  }
+
+  if (preset === 'today') {
+    return {
+      start: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0),
+      end: now,
+    };
+  }
+
+  if (preset === '7d') {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+    return { start: d, end: now };
+  }
+
+  // Default: current month
+  return {
+    start: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0),
+    end: now,
+  };
+}
+
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const {
@@ -163,11 +185,8 @@ export async function GET() {
     }
 
     const accountId = profile.account_id;
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const { start, end } = resolveDateRange(request);
 
-    // Fetch whatsapp_config, template categories, and this month's outbound messages in parallel
     const [configRes, templatesRes, messagesRes] = await Promise.all([
       admin
         .from('whatsapp_config')
@@ -186,12 +205,12 @@ export async function GET() {
         .eq('conversations.account_id', accountId)
         .in('sender_type', ['agent', 'bot'])
         .neq('status', 'failed')
-        .gte('created_at', monthStart.toISOString())
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
         .limit(5000),
     ]);
 
-    // Try Meta's live pricing_analytics API if configured
-    let metaLive: Awaited<ReturnType<typeof fetchMetaLiveAnalytics>> = null;
+    let metaLive: PricingBucket | null = null;
     const cfg = configRes.data;
     if (cfg?.waba_id && cfg?.access_token) {
       try {
@@ -199,15 +218,14 @@ export async function GET() {
         metaLive = await fetchMetaLiveAnalytics(
           cfg.waba_id,
           accessToken,
-          Math.floor(monthStart.getTime() / 1000),
-          Math.floor(now.getTime() / 1000),
+          Math.floor(start.getTime() / 1000),
+          Math.floor(end.getTime() / 1000),
         );
       } catch {
-        // Fallback to CRM-tracked metrics cleanly
+        // Fallback to CRM-tracked metrics
       }
     }
 
-    // Build CRM-tracked billing summary from webhooks + template categories
     const templateCategoryMap = new Map<string, string>();
     for (const t of (templatesRes.data ?? []) as Array<{ name: string; category: string }>) {
       if (t.name && t.category) {
@@ -215,10 +233,7 @@ export async function GET() {
       }
     }
 
-    const crmMonth = emptyBucket();
-    const crmToday = emptyBucket();
-    const todayIso = todayStart.toISOString();
-
+    const crmBucket = emptyBucket();
     for (const m of (messagesRes.data ?? []) as Array<{
       created_at: string;
       content_type: string;
@@ -239,27 +254,23 @@ export async function GET() {
         }
       }
 
-      addMessageToBucket(crmMonth, category, billable);
-      if (m.created_at >= todayIso) {
-        addMessageToBucket(crmToday, category, billable);
-      }
+      addMessageToBucket(crmBucket, category, billable);
     }
 
     const useMetaLive =
       metaLive !== null &&
-      (metaLive.month.totalCost > 0 || metaLive.month.serviceCount > 0);
+      (metaLive.totalCost > 0 || metaLive.serviceCount > 0);
 
     return NextResponse.json(
       {
         source: useMetaLive ? 'meta_live' : 'crm_tracked',
         currency: 'INR',
         rates: INDIA_RATES_INR,
-        today: useMetaLive ? metaLive!.today : crmToday,
-        month: useMetaLive ? metaLive!.month : crmMonth,
+        summary: useMetaLive ? metaLive : crmBucket,
       },
       {
         headers: {
-          'Cache-Control': 'private, max-age=180',
+          'Cache-Control': 'private, max-age=120',
         },
       },
     );
